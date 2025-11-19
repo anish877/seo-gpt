@@ -193,8 +193,8 @@ Return JSON matching:
 }
 Only return JSON.`;
 
-  const fallback = () => {
-    return Array.from({ length: count }).map((_, index) =>
+  const fallback = () => ({
+    topics: Array.from({ length: count }).map((_, index) =>
       buildTopic(
         {
           title: focus
@@ -214,13 +214,13 @@ Only return JSON.`;
         },
         `Topic ${index + 1}`
       )
-    );
-  };
+    )
+  });
 
   const aiResponse = await callOpenAiJson<{ topics: any[] }>(prompt, fallback);
   const topics = Array.isArray(aiResponse?.topics) && aiResponse.topics.length > 0
     ? aiResponse.topics
-    : fallback();
+    : fallback().topics;
 
   return topics.map((topic: any, index: number) =>
     buildTopic(topic, `Topic ${index + 1}`)
@@ -288,8 +288,8 @@ Return JSON:
 }
 Only return JSON.`;
 
-  const fallback = () =>
-    Array.from({ length: count }).map((_, index) =>
+  const fallback = () => ({
+    subPages: Array.from({ length: count }).map((_, index) =>
       buildPage(
         {
           title: `${topicTitle} Sub Topic ${index + 1}`,
@@ -297,12 +297,13 @@ Only return JSON.`;
         },
         `${topicTitle} sub ${index + 1}`
       )
-    );
+    )
+  });
 
   const aiResponse = await callOpenAiJson<{ subPages: any[] }>(prompt, fallback);
   const subPages = Array.isArray(aiResponse?.subPages) && aiResponse.subPages.length > 0
     ? aiResponse.subPages
-    : fallback();
+    : fallback().subPages;
 
   return subPages.map((page: any, index: number) =>
     buildPage(page, `${topicTitle} sub ${index + 1}`)
@@ -327,8 +328,8 @@ Return JSON:
 }
 Only return JSON.`;
 
-  const fallback = () =>
-    Array.from({ length: count }).map((_, index) =>
+  const fallback = () => ({
+    keywords: Array.from({ length: count }).map((_, index) =>
       buildKeyword(
         {
           term: `${scope} keyword ${index + 1}`,
@@ -337,12 +338,13 @@ Only return JSON.`;
         },
         `${scope} keyword ${index + 1}`
       )
-    );
+    )
+  });
 
   const aiResponse = await callOpenAiJson<{ keywords: any[] }>(prompt, fallback);
   const keywordList = Array.isArray(aiResponse?.keywords) && aiResponse.keywords.length > 0
     ? aiResponse.keywords
-    : fallback();
+    : fallback().keywords;
 
   return keywordList.map((kw: any, index: number) =>
     buildKeyword(kw, `${scope} keyword ${index + 1}`)

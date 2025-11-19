@@ -148,3 +148,39 @@ export function isTokenExpired(expiryDate: Date): boolean {
   const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
   return expiryDate <= fiveMinutesFromNow;
 }
+
+/**
+ * Gets user info from Google using access token
+ * @param accessToken - Google access token
+ * @returns User info including email and ID
+ */
+export async function getUserInfo(accessToken: string) {
+  try {
+    const oauth2Client = createOAuth2Client();
+    oauth2Client.setCredentials({ access_token: accessToken });
+    const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+    const userInfo = await oauth2.userinfo.get();
+    
+    return {
+      email: userInfo.data.email || '',
+      id: userInfo.data.id || ''
+    };
+  } catch (error: any) {
+    console.error('Error getting user info:', error);
+    throw new Error(`Failed to get user info: ${error.message}`);
+  }
+}
+
+/**
+ * Revokes a Google OAuth token
+ * @param token - Access token or refresh token to revoke
+ */
+export async function revokeToken(token: string): Promise<void> {
+  try {
+    const oauth2Client = createOAuth2Client();
+    await oauth2Client.revokeToken(token);
+  } catch (error: any) {
+    console.error('Error revoking token:', error);
+    throw new Error(`Failed to revoke token: ${error.message}`);
+  }
+}
