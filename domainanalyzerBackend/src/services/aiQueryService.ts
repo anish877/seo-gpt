@@ -357,29 +357,33 @@ Format your response with clear structure using markdown headings and bullet poi
       // Check if the model wanted to use web search
       const toolCalls = completion.choices[0].message?.tool_calls;
       if (toolCalls && toolCalls.length > 0) {
-        // Simulate web search results by enhancing the response
-        const searchQuery = JSON.parse(toolCalls[0].function.arguments).query;
-        
-        // Make a follow-up call with simulated search results
-        const followUpCompletion = await openai.chat.completions.create({
-          model: 'gpt-4o',
-          messages: [
-            { role: 'system', content: CHATGPT_SYSTEM_PROMPT },
-            { role: 'user', content: enhancedPrompt },
-            completion.choices[0].message,
-            {
-              role: 'tool',
-              tool_call_id: toolCalls[0].id,
-              content: `Search results for "${searchQuery}": Based on current web information, here are relevant findings that should be incorporated into your response. Please provide comprehensive, current information.`
-            }
-          ],
-          max_tokens: 2000,
-          temperature: 0.1
-        });
-        
-        responseText = followUpCompletion.choices[0].message?.content || responseText;
-        enhancedData.searchPerformed = true;
-        enhancedData.searchQuery = searchQuery;
+        const firstToolCall = toolCalls[0];
+        // Type guard: check if it's a function tool call (not a custom tool call)
+        if (firstToolCall.type === 'function' && 'function' in firstToolCall) {
+          // Simulate web search results by enhancing the response
+          const searchQuery = JSON.parse(firstToolCall.function.arguments).query;
+          
+          // Make a follow-up call with simulated search results
+          const followUpCompletion = await openai.chat.completions.create({
+            model: 'gpt-4o',
+            messages: [
+              { role: 'system', content: CHATGPT_SYSTEM_PROMPT },
+              { role: 'user', content: enhancedPrompt },
+              completion.choices[0].message,
+              {
+                role: 'tool',
+                tool_call_id: firstToolCall.id,
+                content: `Search results for "${searchQuery}": Based on current web information, here are relevant findings that should be incorporated into your response. Please provide comprehensive, current information.`
+              }
+            ],
+            max_tokens: 2000,
+            temperature: 0.1
+          });
+          
+          responseText = followUpCompletion.choices[0].message?.content || responseText;
+          enhancedData.searchPerformed = true;
+          enhancedData.searchQuery = searchQuery;
+        }
       }
 
       // Extract URLs from response for sources
