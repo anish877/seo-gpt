@@ -1,17 +1,59 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, BarChart3, Settings, User, LogOut, Menu, X, Building, Globe, CheckCircle, Info, Plug, FileText, ChevronDown, ChevronRight, ChevronLeft, Megaphone, Plus, ChevronUp, Trash2, Sparkles, ArrowLeft, Search, TrendingUp, Grid3X3, List, ArrowUpDown, Loader2, AlertCircle } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/components/ui/use-toast';
-import { maskDomainId } from '@/lib/domainUtils';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import CampaignGraph from '@/components/CampaignGraph';
+import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  LayoutDashboard,
+  BarChart3,
+  Settings,
+  User,
+  LogOut,
+  Menu,
+  X,
+  Building,
+  Globe,
+  CheckCircle,
+  Info,
+  Plug,
+  Send,
+  FileText,
+  ChevronDown,
+  ChevronRight,
+  ChevronLeft,
+  Megaphone,
+  Plus,
+  ChevronUp,
+  Trash2,
+  Sparkles,
+  ArrowLeft,
+  Search,
+  TrendingUp,
+  Grid3X3,
+  List,
+  ArrowUpDown,
+  Loader2,
+  ClipboardList,
+  ScanSearch,
+  AlertCircle,
+} from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/components/ui/use-toast";
+import { maskDomainId } from "@/lib/domainUtils";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import CampaignGraph from "@/components/CampaignGraph";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3002";
 
-type TabId = 'overview' | 'analytics' | 'campaign' | 'settings' | 'profile' | 'ai-checker';
-type CompanySubTabId = 'company-info' | 'integration';
+type TabId =
+  | "overview"
+  | "analytics"
+  | "campaign"
+  | "settings"
+  | "analyze"
+  | "publish"
+  | "audit"
+  | "profile"
+  | "ai-checker";
+type CompanySubTabId = "company-info" | "integration";
 
 interface Tab {
   id: TabId;
@@ -89,8 +131,20 @@ interface CampaignStructure {
 
 const ButtonSpinner = () => (
   <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
-    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4A8 8 0 104 12z" />
+    <circle
+      className="opacity-25"
+      cx="12"
+      cy="12"
+      r="10"
+      stroke="currentColor"
+      strokeWidth="4"
+      fill="none"
+    />
+    <path
+      className="opacity-75"
+      fill="currentColor"
+      d="M4 12a8 8 0 018-8v4l3-3-3-3v4A8 8 0 104 12z"
+    />
   </svg>
 );
 
@@ -169,69 +223,128 @@ const IntegrationSkeleton = () => (
 );
 
 const SidebarDashboard = () => {
-  const [activeTab, setActiveTab] = useState<TabId>('overview');
-  const [activeCompanySubTab, setActiveCompanySubTab] = useState<CompanySubTabId>('company-info');
+  const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [activeCompanySubTab, setActiveCompanySubTab] =
+    useState<CompanySubTabId>("company-info");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
-  const [companyDomain, setCompanyDomain] = useState('');
+  const [companyDomain, setCompanyDomain] = useState("");
   const [companyDomainLoading, setCompanyDomainLoading] = useState(false);
-  const [domainError, setDomainError] = useState('');
+  const [domainError, setDomainError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [auditData, setAuditData] = useState<any>(null);
+const [auditLoading, setAuditLoading] = useState(false);
+const [auditError, setAuditError] = useState<string | null>(null);
+const [auditResult, setAuditResult] = useState<any>(null);
+const [auditComplete, setAuditComplete] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadingSteps, setLoadingSteps] = useState([
-    { name: 'Domain Validation', status: 'pending' as 'pending' | 'running' | 'completed' | 'failed', progress: 0 },
-    { name: 'SSL Certificate Check', status: 'pending' as 'pending' | 'running' | 'completed' | 'failed', progress: 0 },
-    { name: 'Server Response Analysis', status: 'pending' as 'pending' | 'running' | 'completed' | 'failed', progress: 0 },
-    { name: 'Domain Extraction & Keyword Generation', status: 'pending' as 'pending' | 'running' | 'completed' | 'failed', progress: 0 }
+    {
+      name: "Domain Validation",
+      status: "pending" as "pending" | "running" | "completed" | "failed",
+      progress: 0,
+    },
+    {
+      name: "SSL Certificate Check",
+      status: "pending" as "pending" | "running" | "completed" | "failed",
+      progress: 0,
+    },
+    {
+      name: "Server Response Analysis",
+      status: "pending" as "pending" | "running" | "completed" | "failed",
+      progress: 0,
+    },
+    {
+      name: "Domain Extraction & Keyword Generation",
+      status: "pending" as "pending" | "running" | "completed" | "failed",
+      progress: 0,
+    },
   ]);
   const [currentTaskIndex, setCurrentTaskIndex] = useState(0);
   const [createdDomainId, setCreatedDomainId] = useState<number | null>(null);
   const [showResults, setShowResults] = useState(false);
-  const [domainContext, setDomainContext] = useState<string>('');
+  const [domainContext, setDomainContext] = useState<string>("");
   const [isContextExpanded, setIsContextExpanded] = useState(false);
-  const [keywords, setKeywords] = useState<Array<{ id: number; term: string; volume: number; difficulty: string; cpc: number; intent?: string }>>([]);
-  const [keywordsTableData, setKeywordsTableData] = useState<KeywordTableItem[]>([]);
+  const [keywords, setKeywords] = useState<
+    Array<{
+      id: number;
+      term: string;
+      volume: number;
+      difficulty: string;
+      cpc: number;
+      intent?: string;
+    }>
+  >([]);
+  const [keywordsTableData, setKeywordsTableData] = useState<
+    KeywordTableItem[]
+  >([]);
   const [filters, setFilters] = useState({
-    competition: '',
-    intent: '',
-    volume: '',
-    trends: '',
-    date: ''
+    competition: "",
+    intent: "",
+    volume: "",
+    trends: "",
+    date: "",
   });
-  const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [viewMode, setViewMode] = useState<"table" | "cards">("table");
   const [sortConfig, setSortConfig] = useState<{
     key: keyof KeywordTableItem;
-    direction: 'asc' | 'desc';
+    direction: "asc" | "desc";
   } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [showAddKeyword, setShowAddKeyword] = useState(false);
-  const [newKeyword, setNewKeyword] = useState('');
+  const [newKeyword, setNewKeyword] = useState("");
   const [isAddingKeyword, setIsAddingKeyword] = useState(false);
-  const [showCountByCompetition, setShowCountByCompetition] = useState<Record<string, number>>({
+  const [showCountByCompetition, setShowCountByCompetition] = useState<
+    Record<string, number>
+  >({
     Low: 8,
     Medium: 8,
     High: 8,
   });
   const [gscConnected, setGscConnected] = useState(false);
-  const [gscEmail, setGscEmail] = useState<string>('');
-  const [gscSelectedProperty, setGscSelectedProperty] = useState<string>('');
-  const [gscProperties, setGscProperties] = useState<Array<{ siteUrl: string; permissionLevel: string }>>([]);
+  const [gscEmail, setGscEmail] = useState<string>("");
+  const [gscSelectedProperty, setGscSelectedProperty] = useState<string>("");
+  const [gscProperties, setGscProperties] = useState<
+    Array<{ siteUrl: string; permissionLevel: string }>
+  >([]);
   const [gscLoading, setGscLoading] = useState(false);
   const [gscStatusLoading, setGscStatusLoading] = useState(false);
   const [gscLastSynced, setGscLastSynced] = useState<Date | null>(null);
-  const [campaigns, setCampaigns] = useState<Array<{ id: number; title: string; description: string | null; createdAt: string; updatedAt: string }>>([]);
+  const [campaigns, setCampaigns] = useState<
+    Array<{
+      id: number;
+      title: string;
+      description: string | null;
+      createdAt: string;
+      updatedAt: string;
+    }>
+  >([]);
   const [campaignsLoading, setCampaignsLoading] = useState(false);
   const [showCreateCampaign, setShowCreateCampaign] = useState(false);
-  const [newCampaignTitle, setNewCampaignTitle] = useState('');
-  const [newCampaignDescription, setNewCampaignDescription] = useState('');
-  const [expandedCampaignId, setExpandedCampaignId] = useState<number | null>(null);
-  const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
+  const [newCampaignTitle, setNewCampaignTitle] = useState("");
+  const [newCampaignDescription, setNewCampaignDescription] = useState("");
+  const [expandedCampaignId, setExpandedCampaignId] = useState<number | null>(
+    null
+  );
+  const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(
+    null
+  );
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const isSidebarExpanded = sidebarOpen || isSidebarHovered;
+// PUBLISH PAGE STATES
+const [primaryKeyword, setPrimaryKeyword] = useState("");
+const [category, setCategory] = useState("");  // NEW FIELD
+
+// UI STATES
+const [publishLoading, setPublishLoading] = useState(false);
+const [publishSuccess, setPublishSuccess] = useState(false);
+const [publishError, setPublishError] = useState("");
+
 
   useEffect(() => {
     if (sidebarOpen) {
@@ -240,27 +353,102 @@ const SidebarDashboard = () => {
   }, [sidebarOpen]);
 
   const tabs: Tab[] = [
-    { id: 'overview', label: 'Overview', icon: <LayoutDashboard className="h-5 w-5" /> },
-    { id: 'analytics', label: 'Company', icon: <Building className="h-5 w-5" /> },
-    { id: 'campaign', label: 'Campaign', icon: <Megaphone className="h-5 w-5" /> },
-    { id: 'settings', label: 'Settings', icon: <Settings className="h-5 w-5" /> },
-    { id: 'profile', label: 'Profile', icon: <User className="h-5 w-5" /> },
-    { id: 'ai-checker', label: 'AI Checker', icon: <Sparkles className="h-5 w-5" /> },
+    {
+      id: "overview",
+      label: "Overview",
+      icon: <LayoutDashboard className="h-5 w-5" />,
+    },
+    {
+      id: "analytics",
+      label: "Company",
+      icon: <Building className="h-5 w-5" />,
+    },
+    {
+      id: "campaign",
+      label: "Campaign",
+      icon: <Megaphone className="h-5 w-5" />,
+    },
+    {
+      id: "analyze",
+      label: "Analyze",
+      icon: <ScanSearch className="h-5 w-5" />,
+    },
+    {
+      id: "publish",
+      label: "Publish",
+      icon: <Send className="h-5 w-5" />,
+    },
+     {
+      id: "audit",
+      label: "Audit",
+      icon: <ClipboardList className="h-5 w-5" />,
+    },
+    {
+      id: "settings",
+      label: "Settings",
+      icon: <Settings className="h-5 w-5" />,
+    },  
+    { id: "profile", label: "Profile", icon: <User className="h-5 w-5" /> },
+    {
+      id: "ai-checker",
+      label: "AI Checker",
+      icon: <Sparkles className="h-5 w-5" />,
+    },
   ];
 
   const validateDomain = (value: string) => {
-    const domainRegex = /^(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/;
+    const domainRegex =
+      /^(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/;
     if (!value) {
-      setDomainError('Domain is required');
+      setDomainError("Domain is required");
       return false;
     }
     if (!domainRegex.test(value)) {
-      setDomainError('Please enter a valid domain (e.g., example.com)');
+      setDomainError("Please enter a valid domain (e.g., example.com)");
       return false;
     }
-    setDomainError('');
+    setDomainError("");
     return true;
   };
+  
+//Handle Run Audit
+const handleRunAudit = async (url?: string) => {
+  const token = localStorage.getItem("authToken");   
+
+  if (!url || !token) {
+    console.error("Missing URL or token");
+    return;
+  }
+
+  setAuditLoading(true);
+  setAuditResult(null);
+
+  try {
+    const resp = await fetch(`${import.meta.env.VITE_API_URL}/api/audit`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ url }),
+    });
+
+    if (!resp.ok) throw new Error('Failed to run audit');
+
+    const data = await resp.json();
+    setAuditResult(data.normalized);
+    console.log("AUDIT RESPONSE:", data);
+
+    setAuditComplete(true);
+    setTimeout(() => setAuditComplete(false), 3500);
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setAuditLoading(false);
+  }
+};
+
+
 
   const handleDomainChange = (value: string) => {
     setCompanyDomain(value);
@@ -270,23 +458,28 @@ const SidebarDashboard = () => {
   // Handle URL query parameters for tab navigation (e.g., from OAuth callback)
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const tabParam = urlParams.get('tab');
-    const subtabParam = urlParams.get('subtab');
+    const tabParam = urlParams.get("tab");
+    const subtabParam = urlParams.get("subtab");
 
-    if (tabParam === 'ai-checker') {
-      navigate('/ai-checker');
-    } else if (tabParam && ['overview', 'analytics', 'campaign', 'settings', 'profile'].includes(tabParam)) {
+    if (tabParam === "ai-checker") {
+      navigate("/ai-checker");
+    } else if (
+      tabParam &&
+      ["overview", "analytics", "campaign", "settings","audit", "profile"].includes(
+        tabParam
+      )
+    ) {
       setActiveTab(tabParam as TabId);
     }
 
-    if (subtabParam && ['company-info', 'integration'].includes(subtabParam)) {
+    if (subtabParam && ["company-info", "integration"].includes(subtabParam)) {
       setActiveCompanySubTab(subtabParam as CompanySubTabId);
     }
   }, [navigate]);
 
   // Fetch company domain when Company tab is active
   useEffect(() => {
-    if (activeTab === 'analytics') {
+    if (activeTab === "analytics") {
       fetchCompanyDomain();
     } else {
       setCompanyDomainLoading(false);
@@ -295,7 +488,7 @@ const SidebarDashboard = () => {
 
   // Fetch campaigns when Campaign tab is active
   useEffect(() => {
-    if (activeTab === 'campaign') {
+    if (activeTab === "campaign") {
       fetchCampaigns();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -303,7 +496,7 @@ const SidebarDashboard = () => {
 
   // Fetch GSC status when Integration tab is active
   useEffect(() => {
-    if (activeTab === 'analytics' && activeCompanySubTab === 'integration') {
+    if (activeTab === "analytics" && activeCompanySubTab === "integration") {
       fetchGscStatus();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -312,32 +505,32 @@ const SidebarDashboard = () => {
   // Handle OAuth callback from URL params
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const success = urlParams.get('success');
-    const error = urlParams.get('error');
+    const success = urlParams.get("success");
+    const error = urlParams.get("error");
 
-    if (activeTab === 'analytics' && activeCompanySubTab === 'integration') {
-      if (success === 'true') {
+    if (activeTab === "analytics" && activeCompanySubTab === "integration") {
+      if (success === "true") {
         toast({
           title: "Connected Successfully",
           description: "Google Search Console has been connected",
         });
         // Clean URL but keep tab params
         const newUrl = new URL(window.location.href);
-        newUrl.searchParams.delete('success');
-        newUrl.searchParams.delete('error');
-        window.history.replaceState({}, '', newUrl.toString());
+        newUrl.searchParams.delete("success");
+        newUrl.searchParams.delete("error");
+        window.history.replaceState({}, "", newUrl.toString());
         fetchGscStatus();
       } else if (error) {
         toast({
           title: "Connection Failed",
           description: `Failed to connect: ${error}`,
-          variant: "destructive"
+          variant: "destructive",
         });
         // Clean URL but keep tab params
         const newUrl = new URL(window.location.href);
-        newUrl.searchParams.delete('success');
-        newUrl.searchParams.delete('error');
-        window.history.replaceState({}, '', newUrl.toString());
+        newUrl.searchParams.delete("success");
+        newUrl.searchParams.delete("error");
+        window.history.replaceState({}, "", newUrl.toString());
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -346,7 +539,9 @@ const SidebarDashboard = () => {
   // Auto-advance carousel to show running task
   useEffect(() => {
     const interval = setInterval(() => {
-      const runningTaskIndex = loadingSteps.findIndex(task => task.status === 'running');
+      const runningTaskIndex = loadingSteps.findIndex(
+        (task) => task.status === "running"
+      );
       if (runningTaskIndex !== -1) {
         setCurrentTaskIndex(runningTaskIndex);
       }
@@ -358,36 +553,39 @@ const SidebarDashboard = () => {
   const fetchCompanyDomain = async () => {
     try {
       setCompanyDomainLoading(true);
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/user/company-domain`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/user/company-domain`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       if (!response.ok) {
-        throw new Error('Failed to fetch company domain');
+        throw new Error("Failed to fetch company domain");
       }
 
       const data = await response.json();
-      
+
       if (data.success && data.domain) {
         // Company domain exists - show results
         setCompanyDomain(data.domain.url);
-        setDomainContext(data.domain.context || '');
+        setDomainContext(data.domain.context || "");
         setKeywords(data.keywords || []);
         setCreatedDomainId(data.domain.id);
         setShowResults(true);
       } else {
         // No company domain - show form
         setShowResults(false);
-        setCompanyDomain('');
-        setDomainContext('');
+        setCompanyDomain("");
+        setDomainContext("");
         setKeywords([]);
         setCreatedDomainId(null);
       }
     } catch (error) {
-      console.error('Error fetching company domain:', error);
+      console.error("Error fetching company domain:", error);
       // On error, show form
       setShowResults(false);
     } finally {
@@ -398,40 +596,60 @@ const SidebarDashboard = () => {
   // Helper function to determine intent based on keyword content
   const determineIntent = (keyword: string): string => {
     const lowerKeyword = keyword.toLowerCase();
-    
+
     // Transactional intent keywords
-    if (lowerKeyword.includes('buy') || lowerKeyword.includes('purchase') || 
-        lowerKeyword.includes('order') || lowerKeyword.includes('shop') ||
-        lowerKeyword.includes('price') || lowerKeyword.includes('cost') ||
-        lowerKeyword.includes('deal') || lowerKeyword.includes('discount') ||
-        lowerKeyword.includes('sale') || lowerKeyword.includes('offer')) {
-      return 'Transactional';
+    if (
+      lowerKeyword.includes("buy") ||
+      lowerKeyword.includes("purchase") ||
+      lowerKeyword.includes("order") ||
+      lowerKeyword.includes("shop") ||
+      lowerKeyword.includes("price") ||
+      lowerKeyword.includes("cost") ||
+      lowerKeyword.includes("deal") ||
+      lowerKeyword.includes("discount") ||
+      lowerKeyword.includes("sale") ||
+      lowerKeyword.includes("offer")
+    ) {
+      return "Transactional";
     }
-    
+
     // Informational intent keywords
-    if (lowerKeyword.includes('what') || lowerKeyword.includes('how') || 
-        lowerKeyword.includes('why') || lowerKeyword.includes('when') ||
-        lowerKeyword.includes('where') || lowerKeyword.includes('guide') ||
-        lowerKeyword.includes('tutorial') || lowerKeyword.includes('tips') ||
-        lowerKeyword.includes('learn') || lowerKeyword.includes('information') ||
-        lowerKeyword.includes('explain') || lowerKeyword.includes('definition')) {
-      return 'Informational';
+    if (
+      lowerKeyword.includes("what") ||
+      lowerKeyword.includes("how") ||
+      lowerKeyword.includes("why") ||
+      lowerKeyword.includes("when") ||
+      lowerKeyword.includes("where") ||
+      lowerKeyword.includes("guide") ||
+      lowerKeyword.includes("tutorial") ||
+      lowerKeyword.includes("tips") ||
+      lowerKeyword.includes("learn") ||
+      lowerKeyword.includes("information") ||
+      lowerKeyword.includes("explain") ||
+      lowerKeyword.includes("definition")
+    ) {
+      return "Informational";
     }
-    
+
     // Default to Commercial for business-related terms
-    return 'Commercial';
+    return "Commercial";
   };
 
   // Helper to normalize keyword terms for duplicate detection
-  const normalizeTerm = (s: string) => s.toLowerCase().trim().replace(/\s+/g, ' ');
+  const normalizeTerm = (s: string) =>
+    s.toLowerCase().trim().replace(/\s+/g, " ");
 
   // Convert keywords to table format
   useEffect(() => {
     if (keywords.length > 0 && createdDomainId) {
-      const lsCustom = (localStorage.getItem('customKeywords') || '')
-        .split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
-      const lsAdvanced = (localStorage.getItem('advancedKeywords') || '')
-        .split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
+      const lsCustom = (localStorage.getItem("customKeywords") || "")
+        .split(",")
+        .map((k) => k.trim().toLowerCase())
+        .filter(Boolean);
+      const lsAdvanced = (localStorage.getItem("advancedKeywords") || "")
+        .split(",")
+        .map((k) => k.trim().toLowerCase())
+        .filter(Boolean);
       const customSet = new Set([...lsCustom, ...lsAdvanced]);
 
       const tableKeywords: KeywordTableItem[] = keywords.map((kw) => ({
@@ -439,17 +657,24 @@ const SidebarDashboard = () => {
         keyword: kw.term,
         intent: kw.intent || determineIntent(kw.term),
         volume: kw.volume,
-        kd: kw.difficulty === 'High' ? 75 : kw.difficulty === 'Low' ? 25 : 50,
-        competition: kw.difficulty === 'High' ? 'High' : kw.difficulty === 'Low' ? 'Low' : 'Medium',
+        kd: kw.difficulty === "High" ? 75 : kw.difficulty === "Low" ? 25 : 50,
+        competition:
+          kw.difficulty === "High"
+            ? "High"
+            : kw.difficulty === "Low"
+            ? "Low"
+            : "Medium",
         cpc: kw.cpc || 0,
         organic: Math.floor(kw.volume * 0.1),
         paid: Math.floor(kw.volume * 0.05),
-        trend: 'Stable',
+        trend: "Stable",
         position: 0,
-        url: `https://${companyDomain}/${kw.term.toLowerCase().replace(/\s+/g, '-')}`,
-        updated: new Date().toISOString().split('T')[0],
+        url: `https://${companyDomain}/${kw.term
+          .toLowerCase()
+          .replace(/\s+/g, "-")}`,
+        updated: new Date().toISOString().split("T")[0],
         selected: false,
-        isCustom: customSet.has(kw.term.toLowerCase())
+        isCustom: customSet.has(kw.term.toLowerCase()),
       }));
 
       setKeywordsTableData(tableKeywords);
@@ -460,10 +685,14 @@ const SidebarDashboard = () => {
 
   // Filter and sort keywords
   const filteredKeywords = React.useMemo(() => {
-    return keywordsTableData.filter(keyword => {
-      const matchesSearch = keyword.keyword.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCompetition = !filters.competition || keyword.competition === filters.competition;
-      const matchesIntent = !filters.intent || keyword.intent === filters.intent;
+    return keywordsTableData.filter((keyword) => {
+      const matchesSearch = keyword.keyword
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
+      const matchesCompetition =
+        !filters.competition || keyword.competition === filters.competition;
+      const matchesIntent =
+        !filters.intent || keyword.intent === filters.intent;
       return matchesSearch && matchesCompetition && matchesIntent;
     });
   }, [keywordsTableData, searchTerm, filters.competition, filters.intent]);
@@ -474,19 +703,21 @@ const SidebarDashboard = () => {
       sortableKeywords.sort((a, b) => {
         const aValue = a[sortConfig.key];
         const bValue = b[sortConfig.key];
-        
-        if (typeof aValue === 'number' && typeof bValue === 'number') {
-          return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue;
+
+        if (typeof aValue === "number" && typeof bValue === "number") {
+          return sortConfig.direction === "asc"
+            ? aValue - bValue
+            : bValue - aValue;
         }
-        
+
         const aStr = String(aValue).toLowerCase();
         const bStr = String(bValue).toLowerCase();
-        
+
         if (aStr < bStr) {
-          return sortConfig.direction === 'asc' ? -1 : 1;
+          return sortConfig.direction === "asc" ? -1 : 1;
         }
         if (aStr > bStr) {
-          return sortConfig.direction === 'asc' ? 1 : -1;
+          return sortConfig.direction === "asc" ? 1 : -1;
         }
         return 0;
       });
@@ -495,7 +726,10 @@ const SidebarDashboard = () => {
   }, [filteredKeywords, sortConfig]);
 
   // Pagination
-  const totalPages = Math.max(1, Math.ceil(sortedKeywords.length / itemsPerPage));
+  const totalPages = Math.max(
+    1,
+    Math.ceil(sortedKeywords.length / itemsPerPage)
+  );
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const currentKeywords = sortedKeywords.slice(startIndex, endIndex);
@@ -514,48 +748,66 @@ const SidebarDashboard = () => {
     setCurrentPage(1);
   }, [searchTerm, filters.competition, filters.intent]);
 
-  const handleSort = useCallback((key: keyof KeywordTableItem) => {
-    let direction: 'asc' | 'desc' = 'asc';
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
-    setSortConfig({ key, direction });
-  }, [sortConfig]);
+  const handleSort = useCallback(
+    (key: keyof KeywordTableItem) => {
+      let direction: "asc" | "desc" = "asc";
+      if (
+        sortConfig &&
+        sortConfig.key === key &&
+        sortConfig.direction === "asc"
+      ) {
+        direction = "desc";
+      }
+      setSortConfig({ key, direction });
+    },
+    [sortConfig]
+  );
 
-  const getSortIcon = useCallback((key: keyof KeywordTableItem) => {
-    if (!sortConfig || sortConfig.key !== key) {
-      return <ArrowUpDown className="w-4 h-4 text-gray-400" />;
-    }
-    return sortConfig.direction === 'asc' ? 
-      <ChevronUp className="w-4 h-4 text-gray-700" /> : 
-      <ChevronDown className="w-4 h-4 text-gray-700" />;
-  }, [sortConfig]);
+  const getSortIcon = useCallback(
+    (key: keyof KeywordTableItem) => {
+      if (!sortConfig || sortConfig.key !== key) {
+        return <ArrowUpDown className="w-4 h-4 text-gray-400" />;
+      }
+      return sortConfig.direction === "asc" ? (
+        <ChevronUp className="w-4 h-4 text-gray-700" />
+      ) : (
+        <ChevronDown className="w-4 h-4 text-gray-700" />
+      );
+    },
+    [sortConfig]
+  );
 
   const getCompetitionBadge = useCallback((competition: string) => {
     const baseClasses = "px-2.5 py-1 rounded-full text-xs font-semibold";
     switch (competition) {
-      case 'High':
+      case "High":
         return `${baseClasses} bg-red-100 text-red-800`;
-      case 'Medium':
+      case "Medium":
         return `${baseClasses} bg-yellow-100 text-yellow-800`;
-      case 'Low':
+      case "Low":
         return `${baseClasses} bg-green-100 text-green-800`;
       default:
         return `${baseClasses} bg-gray-100 text-gray-800`;
     }
   }, []);
 
-  const handlePageChange = useCallback((page: number) => {
-    const totalPagesCalc = Math.max(1, Math.ceil(sortedKeywords.length / itemsPerPage));
-    if (page >= 1 && page <= totalPagesCalc) {
-      setCurrentPage(page);
-    }
-  }, [sortedKeywords.length, itemsPerPage]);
+  const handlePageChange = useCallback(
+    (page: number) => {
+      const totalPagesCalc = Math.max(
+        1,
+        Math.ceil(sortedKeywords.length / itemsPerPage)
+      );
+      if (page >= 1 && page <= totalPagesCalc) {
+        setCurrentPage(page);
+      }
+    },
+    [sortedKeywords.length, itemsPerPage]
+  );
 
   const getPageNumbers = useCallback(() => {
     const pages = [];
     const maxVisiblePages = 5;
-    
+
     if (totalPages <= maxVisiblePages) {
       for (let i = 1; i <= totalPages; i++) {
         pages.push(i);
@@ -565,33 +817,36 @@ const SidebarDashboard = () => {
         for (let i = 1; i <= 4; i++) {
           pages.push(i);
         }
-        pages.push('...');
+        pages.push("...");
         pages.push(totalPages);
       } else if (currentPage >= totalPages - 2) {
         pages.push(1);
-        pages.push('...');
+        pages.push("...");
         for (let i = totalPages - 3; i <= totalPages; i++) {
           pages.push(i);
         }
       } else {
         pages.push(1);
-        pages.push('...');
+        pages.push("...");
         for (let i = currentPage - 1; i <= currentPage + 1; i++) {
           pages.push(i);
         }
-        pages.push('...');
+        pages.push("...");
         pages.push(totalPages);
       }
     }
-    
+
     return pages;
   }, [totalPages, currentPage]);
 
   // Domain context helpers
-  const trimmedDomainContext = React.useMemo(() => domainContext?.trim() || '', [domainContext]);
+  const trimmedDomainContext = React.useMemo(
+    () => domainContext?.trim() || "",
+    [domainContext]
+  );
 
   const domainContextPreview = React.useMemo(() => {
-    if (!trimmedDomainContext) return '';
+    if (!trimmedDomainContext) return "";
 
     const paragraphs = trimmedDomainContext
       .split(/\n\s*\n/)
@@ -599,7 +854,7 @@ const SidebarDashboard = () => {
       .filter(Boolean);
 
     if (paragraphs.length > 0) {
-      const firstBlocks = paragraphs.slice(0, 2).join('\n\n');
+      const firstBlocks = paragraphs.slice(0, 2).join("\n\n");
       if (firstBlocks.length >= 600) {
         return `${firstBlocks.slice(0, 600)}…`;
       }
@@ -624,7 +879,9 @@ const SidebarDashboard = () => {
   }, [trimmedDomainContext, domainContextPreview]);
 
   const displayedDomainContext =
-    isContextExpanded || !hasAdditionalContext ? trimmedDomainContext : domainContextPreview;
+    isContextExpanded || !hasAdditionalContext
+      ? trimmedDomainContext
+      : domainContextPreview;
 
   useEffect(() => {
     setIsContextExpanded(false);
@@ -633,38 +890,43 @@ const SidebarDashboard = () => {
   const fetchGscStatus = async () => {
     try {
       setGscStatusLoading(true);
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/gsc/status`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/gsc/status`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       if (!response.ok) {
-        throw new Error('Failed to fetch GSC status');
+        throw new Error("Failed to fetch GSC status");
       }
 
       const data = await response.json();
-      
+
       if (data.success && data.connected) {
         setGscConnected(true);
-        setGscEmail(data.email || '');
-        setGscSelectedProperty(data.selectedProperty || '');
-        setGscLastSynced(data.lastSyncedAt ? new Date(data.lastSyncedAt) : null);
-        
+        setGscEmail(data.email || "");
+        setGscSelectedProperty(data.selectedProperty || "");
+        setGscLastSynced(
+          data.lastSyncedAt ? new Date(data.lastSyncedAt) : null
+        );
+
         // If no property selected, fetch properties
         if (!data.selectedProperty) {
           fetchGscProperties();
         }
       } else {
         setGscConnected(false);
-        setGscEmail('');
-        setGscSelectedProperty('');
+        setGscEmail("");
+        setGscSelectedProperty("");
         setGscProperties([]);
         setGscLastSynced(null);
       }
     } catch (error) {
-      console.error('Error fetching GSC status:', error);
+      console.error("Error fetching GSC status:", error);
       setGscConnected(false);
     } finally {
       setGscStatusLoading(false);
@@ -674,80 +936,120 @@ const SidebarDashboard = () => {
   const fetchGscProperties = async () => {
     setGscLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/gsc/properties`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/gsc/properties`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       if (!response.ok) {
-        throw new Error('Failed to fetch GSC properties');
+        throw new Error("Failed to fetch GSC properties");
       }
 
       const data = await response.json();
-      
+
       if (data.success) {
         setGscProperties(data.properties || []);
       }
     } catch (error) {
-      console.error('Error fetching GSC properties:', error);
+      console.error("Error fetching GSC properties:", error);
       toast({
         title: "Error",
         description: "Failed to fetch Search Console properties",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setGscLoading(false);
     }
   };
 
+const handlePublish = async () => {
+  setPublishError("");
+  setPublishSuccess(false);
+  setPublishLoading(true);
+
+  try {
+    const res = await fetch(
+      "https://n8n.srv891599.hstgr.cloud/webhook/3fc098fa-684c-4deb-81c6-96025391990c",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          "Primary Keyword": primaryKeyword,
+          "Category": category
+        }),
+      }
+    );
+
+    if (!res.ok) throw new Error("Publish failed");
+
+    setPublishSuccess(true);
+    setTimeout(() => setPublishSuccess(false), 1500);
+  } catch (err) {
+    setPublishError("Failed to publish. Check fields & try again.");
+    setTimeout(() => setPublishError(""), 1500);
+  } finally {
+    setPublishLoading(false);
+  }
+};
+
+
   const handleConnectGsc = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/gsc/auth/initiate`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/gsc/auth/initiate`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       if (!response.ok) {
-        throw new Error('Failed to initiate OAuth');
+        throw new Error("Failed to initiate OAuth");
       }
 
       const data = await response.json();
-      
+
       if (data.success && data.authUrl) {
         // Redirect to Google OAuth
         window.location.href = data.authUrl;
       }
     } catch (error) {
-      console.error('Error connecting GSC:', error);
+      console.error("Error connecting GSC:", error);
       toast({
         title: "Connection Failed",
         description: "Failed to initiate Google Search Console connection",
-        variant: "destructive"
+        variant: "destructive",
       });
     }
   };
 
   const handleSelectProperty = async (property: string) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/gsc/select-property`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ property })
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/gsc/select-property`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ property }),
+        }
+      );
 
       if (!response.ok) {
-        throw new Error('Failed to select property');
+        throw new Error("Failed to select property");
       }
 
       const data = await response.json();
-      
+
       if (data.success) {
         setGscSelectedProperty(property);
         toast({
@@ -756,35 +1058,38 @@ const SidebarDashboard = () => {
         });
       }
     } catch (error) {
-      console.error('Error selecting property:', error);
+      console.error("Error selecting property:", error);
       toast({
         title: "Error",
         description: "Failed to select property",
-        variant: "destructive"
+        variant: "destructive",
       });
     }
   };
 
   const handleDisconnectGsc = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/gsc/disconnect`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/gsc/disconnect`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       if (!response.ok) {
-        throw new Error('Failed to disconnect');
+        throw new Error("Failed to disconnect");
       }
 
       const data = await response.json();
-      
+
       if (data.success) {
         setGscConnected(false);
-        setGscEmail('');
-        setGscSelectedProperty('');
+        setGscEmail("");
+        setGscSelectedProperty("");
         setGscProperties([]);
         setGscLastSynced(null);
         toast({
@@ -793,11 +1098,11 @@ const SidebarDashboard = () => {
         });
       }
     } catch (error) {
-      console.error('Error disconnecting GSC:', error);
+      console.error("Error disconnecting GSC:", error);
       toast({
         title: "Error",
         description: "Failed to disconnect Google Search Console",
-        variant: "destructive"
+        variant: "destructive",
       });
     }
   };
@@ -805,28 +1110,31 @@ const SidebarDashboard = () => {
   const fetchCampaigns = async () => {
     setCampaignsLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/campaigns`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/campaigns`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       if (!response.ok) {
-        throw new Error('Failed to fetch campaigns');
+        throw new Error("Failed to fetch campaigns");
       }
 
       const data = await response.json();
-      
+
       if (data.success) {
         setCampaigns(data.campaigns || []);
       }
     } catch (error) {
-      console.error('Error fetching campaigns:', error);
+      console.error("Error fetching campaigns:", error);
       toast({
         title: "Error",
         description: "Failed to fetch campaigns",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setCampaignsLoading(false);
@@ -835,76 +1143,79 @@ const SidebarDashboard = () => {
 
   const handleCreateCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!newCampaignTitle.trim()) {
       toast({
         title: "Title Required",
         description: "Please enter a campaign title",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/campaigns`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title: newCampaignTitle.trim(),
-          description: newCampaignDescription.trim() || null
-        })
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/campaigns`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            title: newCampaignTitle.trim(),
+            description: newCampaignDescription.trim() || null,
+          }),
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create campaign');
+        throw new Error(errorData.error || "Failed to create campaign");
       }
 
       const data = await response.json();
-      
+
       if (data.success) {
         toast({
           title: "Campaign Created",
           description: "Your campaign has been created successfully",
         });
-        setNewCampaignTitle('');
-        setNewCampaignDescription('');
+        setNewCampaignTitle("");
+        setNewCampaignDescription("");
         setShowCreateCampaign(false);
         fetchCampaigns();
       }
     } catch (error) {
-      console.error('Error creating campaign:', error);
+      console.error("Error creating campaign:", error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create campaign",
-        variant: "destructive"
+        description:
+          error instanceof Error ? error.message : "Failed to create campaign",
+        variant: "destructive",
       });
     }
   };
 
   const handleDeleteCampaign = async (campaignId: number) => {
-    if (!confirm('Are you sure you want to delete this campaign?')) {
-      return;
-    }
-
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/campaigns/${campaignId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/campaigns/${campaignId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       if (!response.ok) {
-        throw new Error('Failed to delete campaign');
+        throw new Error("Failed to delete campaign");
       }
 
       const data = await response.json();
-      
+
       if (data.success) {
         toast({
           title: "Campaign Deleted",
@@ -916,11 +1227,11 @@ const SidebarDashboard = () => {
         }
       }
     } catch (error) {
-      console.error('Error deleting campaign:', error);
+      console.error("Error deleting campaign:", error);
       toast({
         title: "Error",
         description: "Failed to delete campaign",
-        variant: "destructive"
+        variant: "destructive",
       });
     }
   };
@@ -930,7 +1241,7 @@ const SidebarDashboard = () => {
       toast({
         title: "Domain required",
         description: "Please enter a domain",
-        variant: "destructive"
+        variant: "destructive",
       });
       return null;
     }
@@ -940,20 +1251,25 @@ const SidebarDashboard = () => {
     }
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/domain/check/${encodeURIComponent(companyDomain.trim())}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/domain/check/${encodeURIComponent(
+          companyDomain.trim()
+        )}`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
       const result: DomainCheckResult = await response.json();
       return result;
     } catch (error) {
-      console.error('Error checking domain:', error);
+      console.error("Error checking domain:", error);
       toast({
         title: "Error",
         description: "Failed to check domain status",
-        variant: "destructive"
+        variant: "destructive",
       });
       return null;
     }
@@ -961,7 +1277,7 @@ const SidebarDashboard = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateDomain(companyDomain)) {
       return;
     }
@@ -971,21 +1287,24 @@ const SidebarDashboard = () => {
 
     try {
       // Step 1: Create/update company domain
-      const companyDomainResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/user/company-domain`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          url: companyDomain,
-          location: 'Global'
-        })
-      });
+      const companyDomainResponse = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/user/company-domain`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            url: companyDomain,
+            location: "Global",
+          }),
+        }
+      );
 
       if (!companyDomainResponse.ok) {
         const errorData = await companyDomainResponse.json();
-        throw new Error(errorData.error || 'Failed to create company domain');
+        throw new Error(errorData.error || "Failed to create company domain");
       }
 
       const companyDomainData = await companyDomainResponse.json();
@@ -996,138 +1315,150 @@ const SidebarDashboard = () => {
 
       // Step 2: Run validation steps (same as before)
       const steps = [...loadingSteps];
-    
+
       // Step 1: Domain Validation
-      steps[0] = { ...steps[0], status: 'running' };
+      steps[0] = { ...steps[0], status: "running" };
       setLoadingSteps([...steps]);
-      
+
       for (let progress = 0; progress <= 100; progress += 20) {
         steps[0] = { ...steps[0], progress };
         setLoadingSteps([...steps]);
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
-      
-      const validationResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/domain-validation/validate-domain`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ domain: companyDomain })
-      });
-      
+
+      const validationResponse = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/domain-validation/validate-domain`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ domain: companyDomain }),
+        }
+      );
+
       const validationResult = await validationResponse.json();
-      
+
       if (!validationResult.success) {
-        steps[0] = { ...steps[0], status: 'failed', progress: 100 };
+        steps[0] = { ...steps[0], status: "failed", progress: 100 };
         setLoadingSteps([...steps]);
         toast({
           title: "Domain Validation Failed",
           description: validationResult.error,
-          variant: "destructive"
+          variant: "destructive",
         });
         setIsLoading(false);
         return;
       }
-      
-      steps[0] = { ...steps[0], status: 'completed', progress: 100 };
+
+      steps[0] = { ...steps[0], status: "completed", progress: 100 };
       setLoadingSteps([...steps]);
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
       // Step 2: SSL Certificate Check
-      steps[1] = { ...steps[1], status: 'running' };
+      steps[1] = { ...steps[1], status: "running" };
       setLoadingSteps([...steps]);
-      
+
       for (let progress = 0; progress <= 100; progress += 20) {
         steps[1] = { ...steps[1], progress };
         setLoadingSteps([...steps]);
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
-      
-      const sslResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/domain-validation/check-ssl`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ domain: companyDomain })
-      });
-      
+
+      const sslResponse = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/domain-validation/check-ssl`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ domain: companyDomain }),
+        }
+      );
+
       const sslResult = await sslResponse.json();
-      
+
       if (!sslResult.success) {
-        steps[1] = { ...steps[1], status: 'failed', progress: 100 };
+        steps[1] = { ...steps[1], status: "failed", progress: 100 };
         setLoadingSteps([...steps]);
         toast({
           title: "SSL Check Failed",
           description: sslResult.error,
-          variant: "destructive"
+          variant: "destructive",
         });
         setIsLoading(false);
         return;
       }
-      
-      steps[1] = { ...steps[1], status: 'completed', progress: 100 };
+
+      steps[1] = { ...steps[1], status: "completed", progress: 100 };
       setLoadingSteps([...steps]);
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
       // Step 3: Server Response Analysis
-      steps[2] = { ...steps[2], status: 'running' };
+      steps[2] = { ...steps[2], status: "running" };
       setLoadingSteps([...steps]);
-      
+
       for (let progress = 0; progress <= 100; progress += 20) {
         steps[2] = { ...steps[2], progress };
         setLoadingSteps([...steps]);
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
-      
-      const serverResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/domain-validation/analyze-server`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ domain: companyDomain })
-      });
-      
+
+      const serverResponse = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/domain-validation/analyze-server`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ domain: companyDomain }),
+        }
+      );
+
       const serverResult = await serverResponse.json();
-      
+
       if (!serverResult.success) {
-        steps[2] = { ...steps[2], status: 'failed', progress: 100 };
+        steps[2] = { ...steps[2], status: "failed", progress: 100 };
         setLoadingSteps([...steps]);
         toast({
           title: "Server Analysis Failed",
           description: serverResult.error,
-          variant: "destructive"
+          variant: "destructive",
         });
         setIsLoading(false);
         return;
       }
-      
-      steps[2] = { ...steps[2], status: 'completed', progress: 100 };
+
+      steps[2] = { ...steps[2], status: "completed", progress: 100 };
       setLoadingSteps([...steps]);
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
       // Step 4: Domain Extraction & Keyword Generation (skip geo-location for company domain)
-      steps[3] = { ...steps[3], status: 'running' };
+      steps[3] = { ...steps[3], status: "running" };
       setLoadingSteps([...steps]);
 
       try {
         // Start domain extraction and keyword generation with SSE streaming
-        const domainResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/domain`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            url: companyDomain,
-            location: 'Global',
-            customPaths: [],
-            priorityUrls: [],
-            priorityPaths: []
-          })
-        });
+        const domainResponse = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/domain`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              url: companyDomain,
+              location: "Global",
+              customPaths: [],
+              priorityUrls: [],
+              priorityPaths: [],
+            }),
+          }
+        );
 
         if (!domainResponse.ok) {
           throw new Error(`HTTP error! status: ${domainResponse.status}`);
@@ -1135,55 +1466,58 @@ const SidebarDashboard = () => {
 
         const reader = domainResponse.body?.getReader();
         if (!reader) {
-          throw new Error('No response body');
+          throw new Error("No response body");
         }
 
         const decoder = new TextDecoder();
-        let buffer = '';
+        let buffer = "";
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
 
           for (const line of lines) {
-            if (line.startsWith('data: ')) {
+            if (line.startsWith("data: ")) {
               try {
                 const data = JSON.parse(line.slice(6));
-                
-                if (data.type === 'progress') {
+
+                if (data.type === "progress") {
                   const phase = data.phase;
                   const progress = data.progress;
-                  
+
                   // Map backend phases to frontend task
-                  if (phase === 'domain_extraction' || phase === 'keyword_generation') {
-                    setLoadingSteps(prev => {
+                  if (
+                    phase === "domain_extraction" ||
+                    phase === "keyword_generation"
+                  ) {
+                    setLoadingSteps((prev) => {
                       const newSteps = [...prev];
                       newSteps[3] = {
                         ...newSteps[3],
-                        status: progress === 100 ? 'completed' : 'running',
-                        progress: progress
+                        status: progress === 100 ? "completed" : "running",
+                        progress: progress,
                       };
                       return newSteps;
                     });
                   }
-                } else if (data.type === 'complete') {
+                } else if (data.type === "complete") {
                   // Analysis completed - use the domainId from company domain creation
                   const finalDomainId = domainId;
-                  
+
                   // Wait a moment for all phases to be properly marked as completed
-                  await new Promise(resolve => setTimeout(resolve, 1000));
-                  
+                  await new Promise((resolve) => setTimeout(resolve, 1000));
+
                   // Ensure the step is marked as completed
-                  setLoadingSteps(prev => {
+                  setLoadingSteps((prev) => {
                     const newSteps = [...prev];
                     newSteps[3] = {
                       ...newSteps[3],
-                      status: 'completed',
-                      progress: 100
+                      status: "completed",
+                      progress: 100,
                     };
                     return newSteps;
                   });
@@ -1191,35 +1525,49 @@ const SidebarDashboard = () => {
                   // Fetch domain data including context and keywords
                   try {
                     // Fetch domain with context
-                    const domainResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/domain/${finalDomainId}`, {
-                      headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+                    const domainResponse = await fetch(
+                      `${
+                        import.meta.env.VITE_API_URL
+                      }/api/domain/${finalDomainId}`,
+                      {
+                        headers: {
+                          "Content-Type": "application/json",
+                          Authorization: `Bearer ${localStorage.getItem(
+                            "authToken"
+                          )}`,
+                        },
                       }
-                    });
+                    );
 
                     if (domainResponse.ok) {
                       const domainData = await domainResponse.json();
-                      setDomainContext(domainData.context || '');
+                      setDomainContext(domainData.context || "");
                     }
 
                     // Fetch keywords
-                    const keywordsResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/keywords/${finalDomainId}`, {
-                      headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+                    const keywordsResponse = await fetch(
+                      `${
+                        import.meta.env.VITE_API_URL
+                      }/api/keywords/${finalDomainId}`,
+                      {
+                        headers: {
+                          "Content-Type": "application/json",
+                          Authorization: `Bearer ${localStorage.getItem(
+                            "authToken"
+                          )}`,
+                        },
                       }
-                    });
+                    );
 
                     if (keywordsResponse.ok) {
                       const keywordsData = await keywordsResponse.json();
                       const keywordList = keywordsData.keywords || [];
                       setKeywords(keywordList);
-                      
+
                       // All steps completed successfully - show results
                       setIsLoading(false);
                       setShowResults(true);
-                      
+
                       toast({
                         title: "Domain Setup Complete",
                         description: `All validation steps completed successfully. ${keywordList.length} keywords generated.`,
@@ -1229,55 +1577,63 @@ const SidebarDashboard = () => {
                       setShowResults(true);
                       toast({
                         title: "Domain Setup Complete",
-                        description: "All validation steps completed successfully.",
+                        description:
+                          "All validation steps completed successfully.",
                       });
                     }
                   } catch (error) {
-                    console.error('Error fetching domain data:', error);
+                    console.error("Error fetching domain data:", error);
                     setIsLoading(false);
                     setShowResults(true);
                     toast({
                       title: "Domain Setup Complete",
-                      description: "All validation steps completed successfully.",
+                      description:
+                        "All validation steps completed successfully.",
                     });
                   }
                   return; // Exit early on completion
                 }
               } catch (parseError) {
-                console.error('Error parsing SSE data:', parseError);
+                console.error("Error parsing SSE data:", parseError);
               }
             }
           }
         }
       } catch (error) {
-        console.error('Error during domain extraction:', error);
-        steps[3] = { ...steps[3], status: 'failed', progress: 100 };
+        console.error("Error during domain extraction:", error);
+        steps[3] = { ...steps[3], status: "failed", progress: 100 };
         setLoadingSteps([...steps]);
         toast({
           title: "Domain Extraction Failed",
-          description: error instanceof Error ? error.message : "An error occurred during domain extraction",
-          variant: "destructive"
+          description:
+            error instanceof Error
+              ? error.message
+              : "An error occurred during domain extraction",
+          variant: "destructive",
         });
         setIsLoading(false);
         return;
       }
-      
     } catch (error) {
-      console.error('Error during domain validation:', error);
+      console.error("Error during domain validation:", error);
       toast({
         title: "Validation Error",
         description: "An error occurred during domain validation",
-        variant: "destructive"
+        variant: "destructive",
       });
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen overflow-x-hidden" style={{ 
-      fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif',
-      background: '#f5f5f7'
-    }}>
+    <div
+      className="min-h-screen overflow-x-hidden"
+      style={{
+        fontFamily:
+          '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif',
+        background: "#f5f5f7",
+      }}
+    >
       <style>{`
         .sidebar {
           position: fixed;
@@ -1546,11 +1902,9 @@ const SidebarDashboard = () => {
         }
       `}</style>
 
-
-
       {/* Sidebar */}
       <aside
-        className={`sidebar ${isSidebarExpanded ? 'open' : 'closed'}`}
+        className={`sidebar ${isSidebarExpanded ? "open" : "closed"}`}
         onMouseEnter={() => {
           if (!sidebarOpen) {
             setIsSidebarHovered(true);
@@ -1564,39 +1918,44 @@ const SidebarDashboard = () => {
       >
         <div className="sidebar-header">
           <div className="flex items-center justify-between mb-4">
-            <h1 
+            <h1
               className="sidebar-title"
-              style={{ 
-              fontSize: '24px',
-              fontWeight: '400',
-              letterSpacing: '-0.022em',
-              color: '#1d1d1f',
-              margin: '0'
-            }}>
+              style={{
+                fontSize: "24px",
+                fontWeight: "400",
+                letterSpacing: "-0.022em",
+                color: "#1d1d1f",
+                margin: "0",
+              }}
+            >
               Dashboard
             </h1>
             <button
-              onClick={() => setSidebarOpen(prev => !prev)}
-              aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+              onClick={() => setSidebarOpen((prev) => !prev)}
+              aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
               style={{
-                background: 'transparent',
-                border: 'none',
-                padding: '4px',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'background 0.2s ease'
+                background: "transparent",
+                border: "none",
+                padding: "4px",
+                borderRadius: "6px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "background 0.2s ease",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(0, 0, 0, 0.05)';
+                e.currentTarget.style.background = "rgba(0, 0, 0, 0.05)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.background = "transparent";
               }}
             >
-              {sidebarOpen ? <ChevronLeft className="h-5 w-5 text-gray-600" /> : <Menu className="h-5 w-5 text-gray-600" />}
+              {sidebarOpen ? (
+                <ChevronLeft className="h-5 w-5 text-gray-600" />
+              ) : (
+                <Menu className="h-5 w-5 text-gray-600" />
+              )}
             </button>
           </div>
         </div>
@@ -1606,109 +1965,131 @@ const SidebarDashboard = () => {
             {tabs.map((tab) => (
               <div key={tab.id}>
                 <button
-                  className={`sidebar-tab ${activeTab === tab.id ? 'active' : ''} ${tab.id === 'ai-checker' ? 'ai-checker-tab' : ''}`}
+                  className={`sidebar-tab ${
+                    activeTab === tab.id ? "active" : ""
+                  } ${tab.id === "ai-checker" ? "ai-checker-tab" : ""}`}
                   onClick={() => {
-                    if (tab.id === 'ai-checker') {
-                      navigate('/ai-checker');
+                    if (tab.id === "ai-checker") {
+                      navigate("/ai-checker");
                       return;
                     }
                     setActiveTab(tab.id);
-                    if (tab.id === 'analytics' && !showResults) {
-                      setActiveCompanySubTab('company-info');
+                    if (tab.id === "analytics" && !showResults) {
+                      setActiveCompanySubTab("company-info");
                     }
                   }}
                 >
                   <span className="sidebar-tab-icon">{tab.icon}</span>
                   <span className="sidebar-tab-label">{tab.label}</span>
-                  {tab.id === 'analytics' && activeTab === 'analytics' && showResults && (
-                    <ChevronDown className="h-4 w-4 ml-auto sidebar-tab-chevron" />
-                  )}
+                  {tab.id === "analytics" &&
+                    activeTab === "analytics" &&
+                    showResults && (
+                      <ChevronDown className="h-4 w-4 ml-auto sidebar-tab-chevron" />
+                    )}
                 </button>
                 {/* Show sub-tabs when Company is active and results are shown */}
-                {tab.id === 'analytics' && activeTab === 'analytics' && showResults && (
-                  <div className="ml-8 mt-1 space-y-1 sidebar-subtabs">
-                    <button
-                      onClick={() => setActiveCompanySubTab('company-info')}
-                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-light transition-all duration-200 ${
-                        activeCompanySubTab === 'company-info'
-                          ? 'bg-blue-50 text-blue-700'
-                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                      }`}
-                    >
-                      <FileText className="h-4 w-4" />
-                      <span>Company info</span>
-                      {activeCompanySubTab === 'company-info' && (
-                        <ChevronDown className="h-3 w-3 ml-auto" />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => setActiveCompanySubTab('integration')}
-                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-light transition-all duration-200 ${
-                        activeCompanySubTab === 'integration'
-                          ? 'bg-gray-100 text-gray-900 rounded-lg'
-                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                      }`}
-                    >
-                      <Plug className="h-4 w-4" />
-                      <span>Integration</span>
-                    </button>
-                  </div>
-                )}
+                {tab.id === "analytics" &&
+                  activeTab === "analytics" &&
+                  showResults && (
+                    <div className="ml-8 mt-1 space-y-1 sidebar-subtabs">
+                      <button
+                        onClick={() => setActiveCompanySubTab("company-info")}
+                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-light transition-all duration-200 ${
+                          activeCompanySubTab === "company-info"
+                            ? "bg-blue-50 text-blue-700"
+                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                        }`}
+                      >
+                        <FileText className="h-4 w-4" />
+                        <span>Company info</span>
+                        {activeCompanySubTab === "company-info" && (
+                          <ChevronDown className="h-3 w-3 ml-auto" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => setActiveCompanySubTab("integration")}
+                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-light transition-all duration-200 ${
+                          activeCompanySubTab === "integration"
+                            ? "bg-gray-100 text-gray-900 rounded-lg"
+                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                        }`}
+                      >
+                        <Plug className="h-4 w-4" />
+                        <span>Integration</span>
+                      </button>
+                    </div>
+                  )}
               </div>
             ))}
           </nav>
 
-          <div style={{ 
-            marginTop: '32px',
-            paddingTop: '32px',
-            borderTop: '0.5px solid rgba(0, 0, 0, 0.1)'
-          }}>
+          <div
+            style={{
+              marginTop: "32px",
+              paddingTop: "32px",
+              borderTop: "0.5px solid rgba(0, 0, 0, 0.1)",
+            }}
+          >
             <button
               onClick={logout}
               className="sidebar-tab"
-              style={{ color: '#FF3B30' }}
+              style={{ color: "#FF3B30" }}
             >
-              <LogOut className="h-5 w-5 sidebar-tab-icon" style={{ color: '#FF3B30' }} />
-              <span className="sidebar-tab-label sidebar-logout-label">Logout</span>
+              <LogOut
+                className="h-5 w-5 sidebar-tab-icon"
+                style={{ color: "#FF3B30" }}
+              />
+              <span className="sidebar-tab-label sidebar-logout-label">
+                Logout
+              </span>
             </button>
           </div>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className={`main-content ${!isSidebarExpanded ? 'sidebar-closed' : ''}`}>
-
+      <main
+        className={`main-content ${!isSidebarExpanded ? "sidebar-closed" : ""}`}
+      >
         {/* Content Header */}
         <header className="content-header">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <button
                 className="desktop-sidebar-toggle"
-                onClick={() => setSidebarOpen(prev => !prev)}
-                aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+                onClick={() => setSidebarOpen((prev) => !prev)}
+                aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
               >
-                {sidebarOpen ? <ChevronLeft className="h-4 w-4 text-gray-700" /> : <Menu className="h-4 w-4 text-gray-700" />}
+                {sidebarOpen ? (
+                  <ChevronLeft className="h-4 w-4 text-gray-700" />
+                ) : (
+                  <Menu className="h-4 w-4 text-gray-700" />
+                )}
               </button>
-              <h2 style={{ 
-              fontSize: '28px',
-              fontWeight: '400',
-              letterSpacing: '-0.022em',
-              color: '#1d1d1f',
-              margin: '0'
-            }}>
-              {tabs.find(t => t.id === activeTab)?.label || 'Dashboard'}
+              <h2
+                style={{
+                  fontSize: "28px",
+                  fontWeight: "400",
+                  letterSpacing: "-0.022em",
+                  color: "#1d1d1f",
+                  margin: "0",
+                }}
+              >
+                {tabs.find((t) => t.id === activeTab)?.label || "Dashboard"}
               </h2>
             </div>
             {user && (
               <div className="flex items-center gap-3">
-                <div style={{
-                  background: 'rgba(0, 122, 255, 0.1)',
-                  color: '#007AFF',
-                  padding: '6px 12px',
-                  borderRadius: '12px',
-                  fontSize: '14px',
-                  fontWeight: '500'
-                }}>
+                <div
+                  style={{
+                    background: "rgba(0, 122, 255, 0.1)",
+                    color: "#007AFF",
+                    padding: "6px 12px",
+                    borderRadius: "12px",
+                    fontSize: "14px",
+                    fontWeight: "500",
+                  }}
+                >
                   {user.email}
                 </div>
               </div>
@@ -1718,25 +2099,47 @@ const SidebarDashboard = () => {
 
         {/* Content Body */}
         <div className="content-body">
-          {activeTab === 'analytics' ? (
+          {activeTab === "analytics" ? (
             companyDomainLoading ? (
               <CompanyInfoSkeleton />
             ) : showResults ? (
               <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
                 {/* Company Domain Heading */}
-                <div className="text-center mb-12">
-                  <h1 className="text-5xl sm:text-6xl font-thin text-black leading-tight tracking-tight">
-                    {companyDomain.replace(/^https?:\/\//, '').replace(/^www\./, '')}
-                  </h1>
+                <div className="text-center mb-12 flex flex-col items-center gap-4">
+                  <div className="inline-flex items-center gap-3 bg-blue-50 border border-blue-200 text-blue-700 px-5 py-3 rounded-2xl shadow-sm">
+                    <img
+                      src={`https://www.google.com/s2/favicons?domain=${companyDomain}&sz=64`}
+                      alt="favicon"
+                      className="w-8 h-8 rounded-md"
+                    />
+                    <span className="font-medium text-lg tracking-tight">
+                      {" "}
+                      <a
+                        href={
+                          companyDomain.startsWith("http")
+                            ? companyDomain
+                            : `https://${companyDomain}`
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline text-lg"
+                      >
+                        {companyDomain
+                          .replace(/^https?:\/\//, "")
+                          .replace(/^www\./, "")}
+                      </a>
+                    </span>
+                  </div>
                 </div>
 
                 {/* Company Info Tab Content */}
-                {activeCompanySubTab === 'company-info' && (
+                {activeCompanySubTab === "company-info" && (
                   <div>
                     {/* Domain Context - Centered and Wide */}
                     {domainContext && (
                       <div className="mb-16">
-                        <div className="relative bg-white rounded-3xl p-8 sm:p-12 border border-gray-100 shadow-sm prose prose-lg prose-gray max-w-none mx-auto
+                        <div
+                          className="relative bg-white rounded-3xl p-8 sm:p-12 border border-gray-100 shadow-sm prose prose-lg prose-gray max-w-none mx-auto
                           prose-headings:font-light prose-headings:text-gray-900 prose-headings:tracking-tight prose-headings:text-center
                           prose-h1:text-3xl prose-h1:mb-6 prose-h1:mt-0
                           prose-h2:text-2xl prose-h2:mb-5 prose-h2:mt-10
@@ -1754,20 +2157,26 @@ const SidebarDashboard = () => {
                           prose-table:w-full prose-table:border-collapse prose-table:my-8
                           prose-th:border prose-th:border-gray-300 prose-th:bg-gray-50 prose-th:px-5 prose-th:py-3 prose-th:text-left prose-th:font-medium prose-th:text-gray-900
                           prose-td:border prose-td:border-gray-200 prose-td:px-5 prose-td:py-3 prose-td:text-gray-700
-                          prose-img:rounded-2xl prose-img:shadow-md prose-img:my-8 prose-img:mx-auto">
+                          prose-img:rounded-2xl prose-img:shadow-md prose-img:my-8 prose-img:mx-auto"
+                        >
                           <ReactMarkdown
                             remarkPlugins={[remarkGfm]}
                             components={{
                               // Custom styling for code blocks
                               code: ({ className, children, ...props }) => {
-                                const match = /language-(\w+)/.exec(className || '');
+                                const match = /language-(\w+)/.exec(
+                                  className || ""
+                                );
                                 const isInline = !match;
                                 return isInline ? (
                                   <code className={className} {...props}>
                                     {children}
                                   </code>
                                 ) : (
-                                  <code className={`${className} block`} {...props}>
+                                  <code
+                                    className={`${className} block`}
+                                    {...props}
+                                  >
                                     {children}
                                   </code>
                                 );
@@ -1795,13 +2204,21 @@ const SidebarDashboard = () => {
                         {hasAdditionalContext && (
                           <div className="flex justify-center mt-4">
                             <button
-                              onClick={() => setIsContextExpanded((prev) => !prev)}
+                              onClick={() =>
+                                setIsContextExpanded((prev) => !prev)
+                              }
                               aria-expanded={isContextExpanded}
                               className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-full bg-gray-900 text-white text-sm font-medium shadow-lg shadow-gray-900/20 hover:bg-gray-800 transition-all duration-200"
                             >
-                              <span>{isContextExpanded ? 'Show Less' : 'Read Full Analysis'}</span>
+                              <span>
+                                {isContextExpanded
+                                  ? "Show Less"
+                                  : "Read Full Analysis"}
+                              </span>
                               <ChevronDown
-                                className={`w-4 h-4 transition-transform duration-200 ${isContextExpanded ? 'rotate-180' : ''}`}
+                                className={`w-4 h-4 transition-transform duration-200 ${
+                                  isContextExpanded ? "rotate-180" : ""
+                                }`}
                               />
                             </button>
                           </div>
@@ -1815,19 +2232,25 @@ const SidebarDashboard = () => {
                         <div className="bg-white rounded-3xl border border-gray-100 shadow-lg overflow-hidden backdrop-blur-sm">
                           <div className="p-4 sm:p-6 border-b border-gray-100 bg-gradient-to-b from-gray-50/50 to-white">
                             <div className="flex items-center justify-between mb-4">
-                              <h2 className="text-2xl font-light text-gray-900 tracking-tight">Keywords</h2>
+                              <h2 className="text-2xl font-light text-gray-900 tracking-tight">
+                                Keywords
+                              </h2>
                               <div className="flex items-center space-x-3">
                                 <div className="flex items-center space-x-2">
                                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                                  <span className="text-sm font-medium text-gray-600">{keywordsTableData.length} keywords</span>
-                        </div>
+                                  <span className="text-sm font-medium text-gray-600">
+                                    {keywordsTableData.length} keywords
+                                  </span>
+                                </div>
                               </div>
                             </div>
 
                             {/* Add Custom Keywords Section */}
                             <div className="mb-6 border-t border-gray-100 pt-6">
                               <button
-                                onClick={() => setShowAddKeyword(!showAddKeyword)}
+                                onClick={() =>
+                                  setShowAddKeyword(!showAddKeyword)
+                                }
                                 className="flex items-center text-gray-700 hover:text-gray-900 font-medium text-sm mb-4 px-3 py-2 rounded-full hover:bg-gray-100 transition-all duration-200"
                               >
                                 <Plus className="w-4 h-4 mr-2" />
@@ -1840,22 +2263,33 @@ const SidebarDashboard = () => {
                                     <input
                                       type="text"
                                       value={newKeyword}
-                                      onChange={(e) => setNewKeyword(e.target.value)}
+                                      onChange={(e) =>
+                                        setNewKeyword(e.target.value)
+                                      }
                                       placeholder="Enter keyword to analyze"
                                       className="flex-1 px-4 py-2.5 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent text-sm bg-gray-50/50 transition-all duration-200"
                                       disabled={isAddingKeyword}
                                     />
                                     <button
                                       onClick={async () => {
-                                        if (!newKeyword.trim() || isAddingKeyword || !createdDomainId) return;
+                                        if (
+                                          !newKeyword.trim() ||
+                                          isAddingKeyword ||
+                                          !createdDomainId
+                                        )
+                                          return;
 
-                                        const exists = keywordsTableData.some(kw => normalizeTerm(kw.keyword) === normalizeTerm(newKeyword));
+                                        const exists = keywordsTableData.some(
+                                          (kw) =>
+                                            normalizeTerm(kw.keyword) ===
+                                            normalizeTerm(newKeyword)
+                                        );
                                         if (exists) {
                                           toast({
                                             title: "Already Added",
                                             description: `"${newKeyword.trim()}" is already in your list`,
                                           });
-                                          setNewKeyword('');
+                                          setNewKeyword("");
                                           setShowAddKeyword(false);
                                           return;
                                         }
@@ -1863,98 +2297,163 @@ const SidebarDashboard = () => {
                                         setIsAddingKeyword(true);
 
                                         try {
-                                          const analyzeResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/keywords/analyze`, {
-                                            method: 'POST',
-                                            headers: {
-                                              'Content-Type': 'application/json',
-                                              'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-                                            },
-                                            body: JSON.stringify({
-                                              keyword: newKeyword.trim(),
-                                              domain: companyDomain,
-                                              location: 'Global',
-                                              domainId: createdDomainId
-                                            })
-                                          });
+                                          const analyzeResponse = await fetch(
+                                            `${
+                                              import.meta.env.VITE_API_URL
+                                            }/api/keywords/analyze`,
+                                            {
+                                              method: "POST",
+                                              headers: {
+                                                "Content-Type":
+                                                  "application/json",
+                                                Authorization: `Bearer ${localStorage.getItem(
+                                                  "authToken"
+                                                )}`,
+                                              },
+                                              body: JSON.stringify({
+                                                keyword: newKeyword.trim(),
+                                                domain: companyDomain,
+                                                location: "Global",
+                                                domainId: createdDomainId,
+                                              }),
+                                            }
+                                          );
 
                                           if (!analyzeResponse.ok) {
-                                            throw new Error(`Analysis failed! status: ${analyzeResponse.status}`);
+                                            throw new Error(
+                                              `Analysis failed! status: ${analyzeResponse.status}`
+                                            );
                                           }
 
-                                          const analysisResult = await analyzeResponse.json();
-                                          
+                                          const analysisResult =
+                                            await analyzeResponse.json();
+
                                           if (!analysisResult.success) {
-                                            throw new Error(analysisResult.error || 'Analysis failed');
+                                            throw new Error(
+                                              analysisResult.error ||
+                                                "Analysis failed"
+                                            );
                                           }
 
-                                          const saveResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/keywords/${createdDomainId}/custom`, {
-                                            method: 'POST',
-                                            headers: {
-                                              'Content-Type': 'application/json',
-                                              'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-                                            },
-                                            body: JSON.stringify({
-                                              keyword: analysisResult.keyword,
-                                              volume: analysisResult.volume,
-                                              kd: analysisResult.kd,
-                                              competition: analysisResult.competition,
-                                              cpc: analysisResult.cpc,
-                                              intent: analysisResult.intent,
-                                              organic: analysisResult.organic,
-                                              paid: analysisResult.paid,
-                                              trend: analysisResult.trend,
-                                              position: analysisResult.position,
-                                              url: analysisResult.url,
-                                              analysis: analysisResult.analysis
-                                            })
-                                          });
+                                          const saveResponse = await fetch(
+                                            `${
+                                              import.meta.env.VITE_API_URL
+                                            }/api/keywords/${createdDomainId}/custom`,
+                                            {
+                                              method: "POST",
+                                              headers: {
+                                                "Content-Type":
+                                                  "application/json",
+                                                Authorization: `Bearer ${localStorage.getItem(
+                                                  "authToken"
+                                                )}`,
+                                              },
+                                              body: JSON.stringify({
+                                                keyword: analysisResult.keyword,
+                                                volume: analysisResult.volume,
+                                                kd: analysisResult.kd,
+                                                competition:
+                                                  analysisResult.competition,
+                                                cpc: analysisResult.cpc,
+                                                intent: analysisResult.intent,
+                                                organic: analysisResult.organic,
+                                                paid: analysisResult.paid,
+                                                trend: analysisResult.trend,
+                                                position:
+                                                  analysisResult.position,
+                                                url: analysisResult.url,
+                                                analysis:
+                                                  analysisResult.analysis,
+                                              }),
+                                            }
+                                          );
 
                                           if (!saveResponse.ok) {
-                                            throw new Error(`Save failed! status: ${saveResponse.status}`);
+                                            throw new Error(
+                                              `Save failed! status: ${saveResponse.status}`
+                                            );
                                           }
 
-                                          const saveResult = await saveResponse.json();
-                                          
+                                          const saveResult =
+                                            await saveResponse.json();
+
                                           if (!saveResult.success) {
-                                            throw new Error(saveResult.error || 'Save failed');
+                                            throw new Error(
+                                              saveResult.error || "Save failed"
+                                            );
                                           }
 
-                                          const existsAfter = keywordsTableData.some(kw => normalizeTerm(kw.keyword) === normalizeTerm(saveResult.keyword.term));
+                                          const existsAfter =
+                                            keywordsTableData.some(
+                                              (kw) =>
+                                                normalizeTerm(kw.keyword) ===
+                                                normalizeTerm(
+                                                  saveResult.keyword.term
+                                                )
+                                            );
                                           if (existsAfter) {
-                                            setNewKeyword('');
+                                            setNewKeyword("");
                                             setShowAddKeyword(false);
                                             setIsAddingKeyword(false);
                                             return;
                                           }
 
-                                          const newKeywordItem: KeywordTableItem = {
-                                            id: saveResult.keyword.id.toString(),
-                                            keyword: saveResult.keyword.term,
-                                            intent: saveResult.keyword.intent || 'Commercial',
-                                            volume: saveResult.keyword.volume,
-                                            kd: parseInt(saveResult.keyword.difficulty) || 50,
-                                            competition: saveResult.keyword.difficulty === 'High' ? 'High' : saveResult.keyword.difficulty === 'Low' ? 'Low' : 'Medium',
-                                            cpc: saveResult.keyword.cpc,
-                                            organic: Math.floor(saveResult.keyword.volume * 0.1),
-                                            paid: Math.floor(saveResult.keyword.volume * 0.05),
-                                            trend: 'Stable',
-                                            position: 0,
-                                            url: `https://${companyDomain}/${saveResult.keyword.term.toLowerCase().replace(/\s+/g, '-')}`,
-                                            updated: new Date().toISOString().split('T')[0],
-                                            selected: false,
-                                            isCustom: true
-                                          };
+                                          const newKeywordItem: KeywordTableItem =
+                                            {
+                                              id: saveResult.keyword.id.toString(),
+                                              keyword: saveResult.keyword.term,
+                                              intent:
+                                                saveResult.keyword.intent ||
+                                                "Commercial",
+                                              volume: saveResult.keyword.volume,
+                                              kd:
+                                                parseInt(
+                                                  saveResult.keyword.difficulty
+                                                ) || 50,
+                                              competition:
+                                                saveResult.keyword
+                                                  .difficulty === "High"
+                                                  ? "High"
+                                                  : saveResult.keyword
+                                                      .difficulty === "Low"
+                                                  ? "Low"
+                                                  : "Medium",
+                                              cpc: saveResult.keyword.cpc,
+                                              organic: Math.floor(
+                                                saveResult.keyword.volume * 0.1
+                                              ),
+                                              paid: Math.floor(
+                                                saveResult.keyword.volume * 0.05
+                                              ),
+                                              trend: "Stable",
+                                              position: 0,
+                                              url: `https://${companyDomain}/${saveResult.keyword.term
+                                                .toLowerCase()
+                                                .replace(/\s+/g, "-")}`,
+                                              updated: new Date()
+                                                .toISOString()
+                                                .split("T")[0],
+                                              selected: false,
+                                              isCustom: true,
+                                            };
 
-                                          setKeywordsTableData(prev => [newKeywordItem, ...prev]);
-                                          setKeywords(prev => [...prev, {
-                                            id: saveResult.keyword.id,
-                                            term: saveResult.keyword.term,
-                                            volume: saveResult.keyword.volume,
-                                            difficulty: saveResult.keyword.difficulty,
-                                            cpc: saveResult.keyword.cpc,
-                                            intent: saveResult.keyword.intent
-                                          }]);
-                                          setNewKeyword('');
+                                          setKeywordsTableData((prev) => [
+                                            newKeywordItem,
+                                            ...prev,
+                                          ]);
+                                          setKeywords((prev) => [
+                                            ...prev,
+                                            {
+                                              id: saveResult.keyword.id,
+                                              term: saveResult.keyword.term,
+                                              volume: saveResult.keyword.volume,
+                                              difficulty:
+                                                saveResult.keyword.difficulty,
+                                              cpc: saveResult.keyword.cpc,
+                                              intent: saveResult.keyword.intent,
+                                            },
+                                          ]);
+                                          setNewKeyword("");
                                           setShowAddKeyword(false);
                                           setIsAddingKeyword(false);
 
@@ -1962,20 +2461,27 @@ const SidebarDashboard = () => {
                                             title: "Keyword Added Successfully",
                                             description: `Successfully analyzed and added "${newKeyword.trim()}" with comprehensive AI data`,
                                           });
-
                                         } catch (error) {
-                                          console.error('Custom keyword analysis error:', error);
+                                          console.error(
+                                            "Custom keyword analysis error:",
+                                            error
+                                          );
                                           toast({
                                             title: "Analysis Failed",
-                                            description: error instanceof Error ? error.message : "Failed to analyze keyword with AI. Please try again.",
+                                            description:
+                                              error instanceof Error
+                                                ? error.message
+                                                : "Failed to analyze keyword with AI. Please try again.",
                                             variant: "destructive",
                                           });
-                                          setNewKeyword('');
+                                          setNewKeyword("");
                                           setShowAddKeyword(false);
                                           setIsAddingKeyword(false);
                                         }
                                       }}
-                                      disabled={!newKeyword.trim() || isAddingKeyword}
+                                      disabled={
+                                        !newKeyword.trim() || isAddingKeyword
+                                      }
                                       className="px-5 py-2.5 bg-gray-900 text-white rounded-2xl hover:bg-gray-800 disabled:bg-gray-300 transition-all duration-200 text-sm font-medium shadow hover:shadow-md"
                                     >
                                       {isAddingKeyword ? (
@@ -1984,13 +2490,13 @@ const SidebarDashboard = () => {
                                           Analyzing...
                                         </>
                                       ) : (
-                                        'Add'
+                                        "Add"
                                       )}
                                     </button>
                                     <button
                                       onClick={() => {
                                         setShowAddKeyword(false);
-                                        setNewKeyword('');
+                                        setNewKeyword("");
                                       }}
                                       className="px-5 py-2.5 border border-gray-200 text-gray-700 rounded-2xl hover:bg-gray-50 text-sm font-medium transition-all duration-200"
                                     >
@@ -2010,14 +2516,21 @@ const SidebarDashboard = () => {
                                     type="text"
                                     placeholder="Search keywords..."
                                     value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    onChange={(e) =>
+                                      setSearchTerm(e.target.value)
+                                    }
                                     className="pl-10 pr-3 py-2.5 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent text-sm bg-gray-50/50 transition-all duration-200 w-72"
                                   />
                                 </div>
 
                                 <select
                                   value={filters.competition}
-                                  onChange={(e) => setFilters(prev => ({ ...prev, competition: e.target.value }))}
+                                  onChange={(e) =>
+                                    setFilters((prev) => ({
+                                      ...prev,
+                                      competition: e.target.value,
+                                    }))
+                                  }
                                   className="px-3 py-2.5 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent text-sm bg-gray-50/50 transition-all duration-200 appearance-none cursor-pointer"
                                 >
                                   <option value="">All Competition</option>
@@ -2028,13 +2541,22 @@ const SidebarDashboard = () => {
 
                                 <select
                                   value={filters.intent}
-                                  onChange={(e) => setFilters(prev => ({ ...prev, intent: e.target.value }))}
+                                  onChange={(e) =>
+                                    setFilters((prev) => ({
+                                      ...prev,
+                                      intent: e.target.value,
+                                    }))
+                                  }
                                   className="px-3 py-2.5 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent text-sm bg-gray-50/50 transition-all duration-200 appearance-none cursor-pointer"
                                 >
                                   <option value="">All Intent</option>
-                                  <option value="Informational">Informational</option>
+                                  <option value="Informational">
+                                    Informational
+                                  </option>
                                   <option value="Commercial">Commercial</option>
-                                  <option value="Transactional">Transactional</option>
+                                  <option value="Transactional">
+                                    Transactional
+                                  </option>
                                 </select>
                               </div>
 
@@ -2042,22 +2564,22 @@ const SidebarDashboard = () => {
                               <div className="flex items-center gap-3">
                                 <div className="flex items-center bg-gray-100 rounded-2xl p-1">
                                   <button
-                                    onClick={() => setViewMode('cards')}
+                                    onClick={() => setViewMode("cards")}
                                     className={`flex items-center space-x-2 px-4 py-2 rounded-xl transition-all duration-200 text-sm font-medium ${
-                                      viewMode === 'cards'
-                                        ? 'bg-white text-gray-900 shadow-sm'
-                                        : 'text-gray-600 hover:text-gray-900'
+                                      viewMode === "cards"
+                                        ? "bg-white text-gray-900 shadow-sm"
+                                        : "text-gray-600 hover:text-gray-900"
                                     }`}
                                   >
                                     <Grid3X3 className="w-4 h-4" />
                                     <span>Cards</span>
                                   </button>
                                   <button
-                                    onClick={() => setViewMode('table')}
+                                    onClick={() => setViewMode("table")}
                                     className={`flex items-center space-x-2 px-4 py-2 rounded-xl transition-all duration-200 text-sm font-medium ${
-                                      viewMode === 'table'
-                                        ? 'bg-white text-gray-900 shadow-sm'
-                                        : 'text-gray-600 hover:text-gray-900'
+                                      viewMode === "table"
+                                        ? "bg-white text-gray-900 shadow-sm"
+                                        : "text-gray-600 hover:text-gray-900"
                                     }`}
                                   >
                                     <List className="w-4 h-4" />
@@ -2067,10 +2589,19 @@ const SidebarDashboard = () => {
 
                                 {/* Rows per page control */}
                                 <div className="flex items-center gap-2">
-                                  <span className="text-xs text-gray-600">Rows</span>
+                                  <span className="text-xs text-gray-600">
+                                    Rows
+                                  </span>
                                   <div className="flex items-center bg-white border border-gray-200 rounded-2xl px-1 shadow-sm">
                                     <button
-                                      onClick={() => { const next = Math.max(5, itemsPerPage - 5); setItemsPerPage(next); setCurrentPage(1); }}
+                                      onClick={() => {
+                                        const next = Math.max(
+                                          5,
+                                          itemsPerPage - 5
+                                        );
+                                        setItemsPerPage(next);
+                                        setCurrentPage(1);
+                                      }}
                                       className="px-2 py-1 text-gray-700 hover:text-gray-900 disabled:text-gray-300"
                                       disabled={itemsPerPage <= 5}
                                       aria-label="Decrease rows"
@@ -2084,16 +2615,29 @@ const SidebarDashboard = () => {
                                       step={5}
                                       value={itemsPerPage}
                                       onChange={(e) => {
-                                        const raw = parseInt(e.target.value, 10);
+                                        const raw = parseInt(
+                                          e.target.value,
+                                          10
+                                        );
                                         if (Number.isNaN(raw)) return;
-                                        const clamped = Math.max(5, Math.min(200, raw));
+                                        const clamped = Math.max(
+                                          5,
+                                          Math.min(200, raw)
+                                        );
                                         setItemsPerPage(clamped);
                                         setCurrentPage(1);
                                       }}
                                       className="w-16 text-center px-2 py-1.5 text-sm border-0 focus:outline-none focus:ring-0 bg-transparent"
                                     />
                                     <button
-                                      onClick={() => { const next = Math.min(200, itemsPerPage + 5); setItemsPerPage(next); setCurrentPage(1); }}
+                                      onClick={() => {
+                                        const next = Math.min(
+                                          200,
+                                          itemsPerPage + 5
+                                        );
+                                        setItemsPerPage(next);
+                                        setCurrentPage(1);
+                                      }}
                                       className="px-2 py-1 text-gray-700 hover:text-gray-900 disabled:text-gray-300"
                                       disabled={itemsPerPage >= 200}
                                       aria-label="Increase rows"
@@ -2108,260 +2652,336 @@ const SidebarDashboard = () => {
 
                           {/* Keyword Display - Table or Cards */}
                           <div className="p-4 sm:p-6">
-                            {viewMode === 'table' ? (
-                                  <div className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm">
-                                    {/* Table Header */}
-                                    <div className="bg-gray-50/80 border-b border-gray-200">
-                                      <div className="grid grid-cols-10 gap-4 px-6 py-4 text-sm font-semibold text-gray-700">
-                                        <div 
-                                          className="col-span-3 flex items-center space-x-2 cursor-pointer hover:text-gray-900 transition-colors"
-                                          onClick={() => handleSort('keyword')}
-                                        >
-                                          <span>Keyword</span>
-                                          {getSortIcon('keyword')}
+                            {viewMode === "table" ? (
+                              <div className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm">
+                                {/* Table Header */}
+                                <div className="bg-gray-50/80 border-b border-gray-200">
+                                  <div className="grid grid-cols-10 gap-4 px-6 py-4 text-sm font-semibold text-gray-700">
+                                    <div
+                                      className="col-span-3 flex items-center space-x-2 cursor-pointer hover:text-gray-900 transition-colors"
+                                      onClick={() => handleSort("keyword")}
+                                    >
+                                      <span>Keyword</span>
+                                      {getSortIcon("keyword")}
+                                    </div>
+
+                                    <div
+                                      className="col-span-1 flex items-center space-x-2 cursor-pointer hover:text-gray-900 transition-colors justify-center"
+                                      onClick={() => handleSort("volume")}
+                                    >
+                                      <span>Volume</span>
+                                      {getSortIcon("volume")}
+                                    </div>
+
+                                    <div
+                                      className="col-span-1 flex items-center space-x-2 cursor-pointer hover:text-gray-900 transition-colors justify-center"
+                                      onClick={() => handleSort("competition")}
+                                    >
+                                      <span>Competition</span>
+                                      {getSortIcon("competition")}
+                                    </div>
+
+                                    <div
+                                      className="col-span-1 flex items-center space-x-2 cursor-pointer hover:text-gray-900 transition-colors justify-center"
+                                      onClick={() => handleSort("cpc")}
+                                    >
+                                      <span>CPC</span>
+                                      {getSortIcon("cpc")}
+                                    </div>
+
+                                    <div
+                                      className="col-span-1 flex items-center space-x-2 cursor-pointer hover:text-gray-900 transition-colors justify-center"
+                                      onClick={() => handleSort("organic")}
+                                    >
+                                      <span>Organic</span>
+                                      {getSortIcon("organic")}
+                                    </div>
+
+                                    <div
+                                      className="col-span-1 flex items-center space-x-2 cursor-pointer hover:text-gray-900 transition-colors justify-center"
+                                      onClick={() => handleSort("intent")}
+                                    >
+                                      <span>Intent</span>
+                                      {getSortIcon("intent")}
+                                    </div>
+
+                                    <div
+                                      className="col-span-2 flex items-center space-x-2 cursor-pointer hover:text-gray-900 transition-colors justify-center"
+                                      onClick={() => handleSort("trend")}
+                                    >
+                                      <span>Trend</span>
+                                      {getSortIcon("trend")}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Table Body */}
+                                <div className="divide-y divide-gray-100">
+                                  {currentKeywords.map((keyword) => (
+                                    <div
+                                      key={keyword.id}
+                                      className="grid grid-cols-10 gap-4 px-6 py-4 hover:bg-gray-50/80 transition-all duration-200"
+                                    >
+                                      {/* Keyword Column */}
+                                      <div className="col-span-3 flex items-center space-x-3">
+                                        <div>
+                                          <div className="font-semibold text-gray-900 text-sm flex items-center space-x-2">
+                                            <span>{keyword.keyword}</span>
+                                            {keyword.isCustom && (
+                                              <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-xs font-semibold">
+                                                Custom
+                                              </span>
+                                            )}
+                                          </div>
+                                          <div className="text-xs text-gray-500 mt-0.5 truncate max-w-xs">
+                                            {keyword.url}
+                                          </div>
                                         </div>
-                                        
-                                        <div 
-                                          className="col-span-1 flex items-center space-x-2 cursor-pointer hover:text-gray-900 transition-colors justify-center"
-                                          onClick={() => handleSort('volume')}
+                                      </div>
+
+                                      {/* Volume Column */}
+                                      <div className="col-span-1 flex items-center justify-center">
+                                        <span className="font-semibold text-gray-900 text-sm">
+                                          {keyword.volume >= 1000
+                                            ? `${(
+                                                keyword.volume / 1000
+                                              ).toFixed(1)}K`
+                                            : keyword.volume.toLocaleString()}
+                                        </span>
+                                      </div>
+
+                                      {/* Competition Column */}
+                                      <div className="col-span-1 flex items-center justify-center">
+                                        <span
+                                          className={getCompetitionBadge(
+                                            keyword.competition
+                                          )}
                                         >
-                                          <span>Volume</span>
-                                          {getSortIcon('volume')}
-                                        </div>
-                                        
-                                        <div 
-                                          className="col-span-1 flex items-center space-x-2 cursor-pointer hover:text-gray-900 transition-colors justify-center"
-                                          onClick={() => handleSort('competition')}
+                                          {keyword.competition}
+                                        </span>
+                                      </div>
+
+                                      {/* CPC Column */}
+                                      <div className="col-span-1 flex items-center justify-center">
+                                        <span className="font-semibold text-gray-900 text-sm">
+                                          ${keyword.cpc.toFixed(2)}
+                                        </span>
+                                      </div>
+
+                                      {/* Organic Column */}
+                                      <div className="col-span-1 flex items-center justify-center">
+                                        <span className="text-gray-700 text-sm">
+                                          {keyword.organic.toLocaleString()}
+                                        </span>
+                                      </div>
+
+                                      {/* Intent Column */}
+                                      <div className="col-span-1 flex items-center justify-center">
+                                        <span
+                                          className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                            keyword.intent === "Commercial"
+                                              ? "bg-blue-100 text-blue-800"
+                                              : keyword.intent ===
+                                                "Transactional"
+                                              ? "bg-green-100 text-green-800"
+                                              : "bg-gray-100 text-gray-800"
+                                          }`}
                                         >
-                                          <span>Competition</span>
-                                          {getSortIcon('competition')}
-                                        </div>
-                                        
-                                        <div 
-                                          className="col-span-1 flex items-center space-x-2 cursor-pointer hover:text-gray-900 transition-colors justify-center"
-                                          onClick={() => handleSort('cpc')}
-                                        >
-                                          <span>CPC</span>
-                                          {getSortIcon('cpc')}
-                                        </div>
-                                        
-                                        <div 
-                                          className="col-span-1 flex items-center space-x-2 cursor-pointer hover:text-gray-900 transition-colors justify-center"
-                                          onClick={() => handleSort('organic')}
-                                        >
-                                          <span>Organic</span>
-                                          {getSortIcon('organic')}
-                                        </div>
-                                        
-                                        <div 
-                                          className="col-span-1 flex items-center space-x-2 cursor-pointer hover:text-gray-900 transition-colors justify-center"
-                                          onClick={() => handleSort('intent')}
-                                        >
-                                          <span>Intent</span>
-                                          {getSortIcon('intent')}
-                                        </div>
-                                        
-                                        <div 
-                                          className="col-span-2 flex items-center space-x-2 cursor-pointer hover:text-gray-900 transition-colors justify-center"
-                                          onClick={() => handleSort('trend')}
-                                        >
-                                          <span>Trend</span>
-                                          {getSortIcon('trend')}
+                                          {keyword.intent}
+                                        </span>
+                                      </div>
+
+                                      {/* Trend Column */}
+                                      <div className="col-span-2 flex items-center justify-center">
+                                        <div className="flex items-center space-x-1">
+                                          <TrendingUp
+                                            className={`w-4 h-4 ${
+                                              keyword.trend === "Rising"
+                                                ? "text-green-500"
+                                                : keyword.trend === "Falling"
+                                                ? "text-red-500"
+                                                : "text-gray-500"
+                                            }`}
+                                          />
+                                          <span className="text-sm text-gray-700">
+                                            {keyword.trend}
+                                          </span>
                                         </div>
                                       </div>
                                     </div>
-                                    
-                                    {/* Table Body */}
-                                    <div className="divide-y divide-gray-100">
-                                      {currentKeywords.map((keyword) => (
-                            <div
-                              key={keyword.id}
-                                          className="grid grid-cols-10 gap-4 px-6 py-4 hover:bg-gray-50/80 transition-all duration-200"
+                                  ))}
+                                </div>
+
+                                {/* Pagination */}
+                                {totalPages > 1 && (
+                                  <div className="bg-gray-50/50 border-t border-gray-200 px-6 py-4">
+                                    <div className="flex items-center justify-between">
+                                      {/* Results info */}
+                                      <div className="text-sm text-gray-600">
+                                        Showing {startIndex + 1} to{" "}
+                                        {Math.min(
+                                          endIndex,
+                                          sortedKeywords.length
+                                        )}{" "}
+                                        of {sortedKeywords.length} keywords
+                                      </div>
+
+                                      {/* Pagination controls */}
+                                      <div className="flex items-center space-x-2">
+                                        {/* Previous button */}
+                                        <button
+                                          onClick={() =>
+                                            handlePageChange(currentPage - 1)
+                                          }
+                                          disabled={currentPage === 1}
+                                          className={`flex items-center space-x-1 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                                            currentPage === 1
+                                              ? "text-gray-400 cursor-not-allowed"
+                                              : "text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+                                          }`}
                                         >
-                                          {/* Keyword Column */}
-                                          <div className="col-span-3 flex items-center space-x-3">
-                                            <div>
-                                              <div className="font-semibold text-gray-900 text-sm flex items-center space-x-2">
-                                                <span>{keyword.keyword}</span>
-                                                {keyword.isCustom && (
-                                                  <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-xs font-semibold">
-                                                    Custom
+                                          <ChevronUp className="w-4 h-4 rotate-90" />
+                                          <span>Previous</span>
+                                        </button>
+
+                                        {/* Page numbers */}
+                                        <div className="flex items-center space-x-1">
+                                          {getPageNumbers().map(
+                                            (page, index) => (
+                                              <React.Fragment key={index}>
+                                                {page === "..." ? (
+                                                  <span className="px-2 py-2 text-gray-400">
+                                                    ...
                                                   </span>
+                                                ) : (
+                                                  <button
+                                                    onClick={() =>
+                                                      handlePageChange(
+                                                        page as number
+                                                      )
+                                                    }
+                                                    className={`w-8 h-8 rounded-xl text-sm font-medium transition-all duration-200 flex items-center justify-center ${
+                                                      currentPage === page
+                                                        ? "bg-gray-900 text-white shadow-sm"
+                                                        : "text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+                                                    }`}
+                                                  >
+                                                    {page}
+                                                  </button>
                                                 )}
-                                              </div>
-                                              <div className="text-xs text-gray-500 mt-0.5 truncate max-w-xs">
-                                                {keyword.url}
-                                              </div>
-                                            </div>
-                                          </div>
-                                          
-                                          {/* Volume Column */}
-                                          <div className="col-span-1 flex items-center justify-center">
-                                            <span className="font-semibold text-gray-900 text-sm">
-                                              {keyword.volume >= 1000 ? `${(keyword.volume/1000).toFixed(1)}K` : keyword.volume.toLocaleString()}
-                                            </span>
-                                          </div>
-                                          
-                                          {/* Competition Column */}
-                                          <div className="col-span-1 flex items-center justify-center">
-                                            <span className={getCompetitionBadge(keyword.competition)}>
-                                              {keyword.competition}
-                                            </span>
-                                          </div>
-                                          
-                                          {/* CPC Column */}
-                                          <div className="col-span-1 flex items-center justify-center">
-                                            <span className="font-semibold text-gray-900 text-sm">
-                                              ${keyword.cpc.toFixed(2)}
-                                            </span>
-                                          </div>
-                                          
-                                          {/* Organic Column */}
-                                          <div className="col-span-1 flex items-center justify-center">
-                                            <span className="text-gray-700 text-sm">
-                                              {keyword.organic.toLocaleString()}
-                                            </span>
-                                          </div>
-                                          
-                                          {/* Intent Column */}
-                                          <div className="col-span-1 flex items-center justify-center">
-                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                              keyword.intent === 'Commercial' ? 'bg-blue-100 text-blue-800' :
-                                              keyword.intent === 'Transactional' ? 'bg-green-100 text-green-800' :
-                                              'bg-gray-100 text-gray-800'
-                                            }`}>
-                                    {keyword.intent}
-                                  </span>
-                                          </div>
-                                          
-                                          {/* Trend Column */}
-                                          <div className="col-span-2 flex items-center justify-center">
-                                            <div className="flex items-center space-x-1">
-                                              <TrendingUp className={`w-4 h-4 ${
-                                                keyword.trend === 'Rising' ? 'text-green-500' : 
-                                                keyword.trend === 'Falling' ? 'text-red-500' : 'text-gray-500'
-                                              }`} />
-                                              <span className="text-sm text-gray-700">{keyword.trend}</span>
-                                            </div>
-                                          </div>
+                                              </React.Fragment>
+                                            )
+                                          )}
                                         </div>
-                                      ))}
+
+                                        {/* Next button */}
+                                        <button
+                                          onClick={() =>
+                                            handlePageChange(currentPage + 1)
+                                          }
+                                          disabled={currentPage >= totalPages}
+                                          className={`flex items-center space-x-1 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                                            currentPage >= totalPages
+                                              ? "text-gray-400 cursor-not-allowed"
+                                              : "text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+                                          }`}
+                                        >
+                                          <span>Next</span>
+                                          <ChevronUp className="w-4 h-4 -rotate-90" />
+                                        </button>
+                                      </div>
                                     </div>
-                                    
-                                    {/* Pagination */}
-                                    {totalPages > 1 && (
-                                      <div className="bg-gray-50/50 border-t border-gray-200 px-6 py-4">
-                                        <div className="flex items-center justify-between">
-                                          {/* Results info */}
-                                          <div className="text-sm text-gray-600">
-                                            Showing {startIndex + 1} to {Math.min(endIndex, sortedKeywords.length)} of {sortedKeywords.length} keywords
-                                          </div>
-                                          
-                                          {/* Pagination controls */}
-                                          <div className="flex items-center space-x-2">
-                                            {/* Previous button */}
-                                            <button
-                                              onClick={() => handlePageChange(currentPage - 1)}
-                                              disabled={currentPage === 1}
-                                              className={`flex items-center space-x-1 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
-                                                currentPage === 1
-                                                  ? 'text-gray-400 cursor-not-allowed'
-                                                  : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
-                                              }`}
-                                            >
-                                              <ChevronUp className="w-4 h-4 rotate-90" />
-                                              <span>Previous</span>
-                                            </button>
-                                            
-                                            {/* Page numbers */}
-                                            <div className="flex items-center space-x-1">
-                                              {getPageNumbers().map((page, index) => (
-                                                <React.Fragment key={index}>
-                                                  {page === '...' ? (
-                                                    <span className="px-2 py-2 text-gray-400">...</span>
-                                                  ) : (
-                                                    <button
-                                                      onClick={() => handlePageChange(page as number)}
-                                                      className={`w-8 h-8 rounded-xl text-sm font-medium transition-all duration-200 flex items-center justify-center ${
-                                                        currentPage === page
-                                                          ? 'bg-gray-900 text-white shadow-sm'
-                                                          : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
-                                                      }`}
-                                                    >
-                                                      {page}
-                                                    </button>
-                                                  )}
-                                                </React.Fragment>
-                                              ))}
-                              </div>
-                                            
-                                            {/* Next button */}
-                                            <button
-                                              onClick={() => handlePageChange(currentPage + 1)}
-                                              disabled={currentPage >= totalPages}
-                                              className={`flex items-center space-x-1 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
-                                                currentPage >= totalPages
-                                                  ? 'text-gray-400 cursor-not-allowed'
-                                                  : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
-                                              }`}
-                                            >
-                                              <span>Next</span>
-                                              <ChevronUp className="w-4 h-4 -rotate-90" />
-                                            </button>
-                                </div>
-                                </div>
                                   </div>
                                 )}
-                                    
-                                    {/* Empty state */}
-                                    {sortedKeywords.length === 0 && (
-                                      <div className="py-12 text-center">
-                                        <p className="text-gray-500">No keywords match your current filters.</p>
-                                      </div>
-                                    )}
+
+                                {/* Empty state */}
+                                {sortedKeywords.length === 0 && (
+                                  <div className="py-12 text-center">
+                                    <p className="text-gray-500">
+                                      No keywords match your current filters.
+                                    </p>
                                   </div>
+                                )}
+                              </div>
                             ) : (
                               (() => {
-                                const clusterTypes: Array<'Low' | 'Medium' | 'High'> = ['Low', 'Medium', 'High'];
+                                const clusterTypes: Array<
+                                  "Low" | "Medium" | "High"
+                                > = ["Low", "Medium", "High"];
                                 const initialShowCount = 8;
 
                                 return (
                                   <div className="space-y-8">
                                     {clusterTypes.map((competition) => {
-                                      const clusterKeywordsAll = sortedKeywords.filter(k => k.competition === competition);
-                                      if (clusterKeywordsAll.length === 0) return null;
+                                      const clusterKeywordsAll =
+                                        sortedKeywords.filter(
+                                          (k) => k.competition === competition
+                                        );
+                                      if (clusterKeywordsAll.length === 0)
+                                        return null;
 
-                                      const showCount = showCountByCompetition[competition] || initialShowCount;
-                                      const clusterKeywords = clusterKeywordsAll.slice(0, showCount);
+                                      const showCount =
+                                        showCountByCompetition[competition] ||
+                                        initialShowCount;
+                                      const clusterKeywords =
+                                        clusterKeywordsAll.slice(0, showCount);
 
                                       return (
-                                        <div key={competition} className="space-y-4">
+                                        <div
+                                          key={competition}
+                                          className="space-y-4"
+                                        >
                                           {/* Cluster Header */}
                                           <div className="flex items-center justify-between">
                                             <div className="flex items-center space-x-3">
                                               <h3 className="text-xl font-semibold text-gray-900 tracking-tight">
                                                 {competition} Competition
                                               </h3>
-                                              <div className={`${
-                                                competition === 'High' ? 'bg-red-100 text-red-800 border border-red-200' :
-                                                competition === 'Medium' ? 'bg-yellow-100 text-yellow-800 border border-yellow-200' :
-                                                'bg-green-100 text-green-800 border border-green-200'
-                                              } px-3 py-1.5 rounded-full text-xs font-medium`}>
-                                                {clusterKeywordsAll.length} keywords
+                                              <div
+                                                className={`${
+                                                  competition === "High"
+                                                    ? "bg-red-100 text-red-800 border border-red-200"
+                                                    : competition === "Medium"
+                                                    ? "bg-yellow-100 text-yellow-800 border border-yellow-200"
+                                                    : "bg-green-100 text-green-800 border border-green-200"
+                                                } px-3 py-1.5 rounded-full text-xs font-medium`}
+                                              >
+                                                {clusterKeywordsAll.length}{" "}
+                                                keywords
                                               </div>
                                             </div>
                                             <div className="flex items-center gap-2">
                                               {showCount > initialShowCount && (
                                                 <button
-                                                  onClick={() => setShowCountByCompetition(prev => ({ ...prev, [competition]: initialShowCount }))}
+                                                  onClick={() =>
+                                                    setShowCountByCompetition(
+                                                      (prev) => ({
+                                                        ...prev,
+                                                        [competition]:
+                                                          initialShowCount,
+                                                      })
+                                                    )
+                                                  }
                                                   className="px-3 py-1.5 text-xs border border-gray-200 rounded-2xl hover:bg-gray-50 text-gray-700"
                                                 >
                                                   Show less
                                                 </button>
                                               )}
-                                              {showCount < clusterKeywordsAll.length && (
+                                              {showCount <
+                                                clusterKeywordsAll.length && (
                                                 <button
-                                                  onClick={() => setShowCountByCompetition(prev => ({ ...prev, [competition]: Math.min(clusterKeywordsAll.length, showCount + initialShowCount) }))}
+                                                  onClick={() =>
+                                                    setShowCountByCompetition(
+                                                      (prev) => ({
+                                                        ...prev,
+                                                        [competition]: Math.min(
+                                                          clusterKeywordsAll.length,
+                                                          showCount +
+                                                            initialShowCount
+                                                        ),
+                                                      })
+                                                    )
+                                                  }
                                                   className="px-3 py-1.5 text-xs border border-gray-200 rounded-2xl hover:bg-gray-50 text-gray-700"
                                                 >
                                                   Show more
@@ -2377,8 +2997,8 @@ const SidebarDashboard = () => {
                                                 key={keyword.id}
                                                 className={`relative overflow-hidden rounded-3xl border-2 min-h-[160px] flex flex-col transition-all duration-300 ease-out ${
                                                   keyword.isCustom
-                                                    ? 'border-purple-200 bg-gradient-to-br from-purple-50 to-purple-100/50 hover:border-purple-300 hover:shadow'
-                                                    : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow'
+                                                    ? "border-purple-200 bg-gradient-to-br from-purple-50 to-purple-100/50 hover:border-purple-300 hover:shadow"
+                                                    : "border-gray-200 bg-white hover:border-gray-300 hover:shadow"
                                                 }`}
                                               >
                                                 {keyword.isCustom && (
@@ -2397,17 +3017,30 @@ const SidebarDashboard = () => {
                                                   <div className="space-y-2">
                                                     <div className="flex items-center justify-between">
                                                       <div className="flex items-center space-x-2">
-                                                        <TrendingUp className="text-gray-500" style={{ width: 16, height: 16 }} />
-                                                        <span className="text-xs font-medium text-gray-600">Volume</span>
+                                                        <TrendingUp
+                                                          className="text-gray-500"
+                                                          style={{
+                                                            width: 16,
+                                                            height: 16,
+                                                          }}
+                                                        />
+                                                        <span className="text-xs font-medium text-gray-600">
+                                                          Volume
+                                                        </span>
                                                       </div>
                                                       <span className="text-sm font-bold text-gray-900">
-                                                        {keyword.volume >= 1000 ? `${(keyword.volume/1000).toFixed(1)}K` : keyword.volume.toLocaleString()}
+                                                        {keyword.volume >= 1000
+                                                          ? `${(
+                                                              keyword.volume /
+                                                              1000
+                                                            ).toFixed(1)}K`
+                                                          : keyword.volume.toLocaleString()}
                                                       </span>
                                                     </div>
                                                   </div>
-                              </div>
-                            </div>
-                          ))}
+                                                </div>
+                                              </div>
+                                            ))}
                                           </div>
                                         </div>
                                       );
@@ -2426,16 +3059,32 @@ const SidebarDashboard = () => {
                       <button
                         onClick={() => {
                           setShowResults(false);
-                          setCompanyDomain('');
-                          setDomainError('');
-                          setDomainContext('');
+                          setCompanyDomain("");
+                          setDomainError("");
+                          setDomainContext("");
                           setKeywords([]);
                           setCreatedDomainId(null);
                           setLoadingSteps([
-                            { name: 'Domain Validation', status: 'pending', progress: 0 },
-                            { name: 'SSL Certificate Check', status: 'pending', progress: 0 },
-                            { name: 'Server Response Analysis', status: 'pending', progress: 0 },
-                            { name: 'Domain Extraction & Keyword Generation', status: 'pending', progress: 0 }
+                            {
+                              name: "Domain Validation",
+                              status: "pending",
+                              progress: 0,
+                            },
+                            {
+                              name: "SSL Certificate Check",
+                              status: "pending",
+                              progress: 0,
+                            },
+                            {
+                              name: "Server Response Analysis",
+                              status: "pending",
+                              progress: 0,
+                            },
+                            {
+                              name: "Domain Extraction & Keyword Generation",
+                              status: "pending",
+                              progress: 0,
+                            },
                           ]);
                         }}
                         className="px-6 py-3 bg-gray-100 text-gray-900 rounded-full hover:bg-gray-200 transition-all duration-200 text-base font-light"
@@ -2458,7 +3107,7 @@ const SidebarDashboard = () => {
                 )}
 
                 {/* Integration Tab Content */}
-                {activeCompanySubTab === 'integration' && (
+                {activeCompanySubTab === "integration" && (
                   <div className="max-w-4xl mx-auto">
                     {gscStatusLoading ? (
                       <IntegrationSkeleton />
@@ -2472,7 +3121,8 @@ const SidebarDashboard = () => {
                           Google Search Console
                         </h2>
                         <p className="text-base font-light text-gray-600 mb-8">
-                          Connect your Google Search Console account to view search performance data
+                          Connect your Google Search Console account to view
+                          search performance data
                         </p>
                         <button
                           onClick={handleConnectGsc}
@@ -2509,7 +3159,8 @@ const SidebarDashboard = () => {
                           </div>
                           {gscLastSynced && (
                             <p className="text-xs font-light text-gray-500">
-                              Last synced: {new Date(gscLastSynced).toLocaleString()}
+                              Last synced:{" "}
+                              {new Date(gscLastSynced).toLocaleString()}
                             </p>
                           )}
                         </div>
@@ -2526,14 +3177,18 @@ const SidebarDashboard = () => {
                             {gscLoading ? (
                               <div className="text-center py-8">
                                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-                                <p className="text-sm font-light text-gray-600 mt-4">Loading properties...</p>
+                                <p className="text-sm font-light text-gray-600 mt-4">
+                                  Loading properties...
+                                </p>
                               </div>
                             ) : gscProperties.length > 0 ? (
                               <div className="space-y-3">
                                 {gscProperties.map((property) => (
                                   <button
                                     key={property.siteUrl}
-                                    onClick={() => handleSelectProperty(property.siteUrl)}
+                                    onClick={() =>
+                                      handleSelectProperty(property.siteUrl)
+                                    }
                                     className="w-full text-left p-4 rounded-2xl border border-gray-100 hover:border-gray-200 hover:bg-gray-50 transition-all duration-200"
                                   >
                                     <div className="flex items-center justify-between">
@@ -2553,7 +3208,8 @@ const SidebarDashboard = () => {
                             ) : (
                               <div className="text-center py-8">
                                 <p className="text-sm font-light text-gray-600">
-                                  No properties found. Make sure your site is verified in Google Search Console.
+                                  No properties found. Make sure your site is
+                                  verified in Google Search Console.
                                 </p>
                                 <button
                                   onClick={fetchGscProperties}
@@ -2577,7 +3233,7 @@ const SidebarDashboard = () => {
                               </div>
                               <button
                                 onClick={() => {
-                                  setGscSelectedProperty('');
+                                  setGscSelectedProperty("");
                                   fetchGscProperties();
                                 }}
                                 className="px-4 py-2 text-sm font-light text-gray-600 hover:text-gray-900"
@@ -2586,7 +3242,9 @@ const SidebarDashboard = () => {
                               </button>
                             </div>
                             <p className="text-sm font-light text-gray-500">
-                              Search Console data will be available for this property. You can fetch analytics data using the API.
+                              Search Console data will be available for this
+                              property. You can fetch analytics data using the
+                              API.
                             </p>
                           </div>
                         )}
@@ -2600,8 +3258,18 @@ const SidebarDashboard = () => {
                 <div className="max-w-2xl w-full">
                   <div className="text-center mb-12">
                     <div className="w-16 h-16 mx-auto mb-6 bg-gray-100 rounded-full flex items-center justify-center">
-                      <svg className="w-8 h-8 text-gray-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      <svg
+                        className="w-8 h-8 text-gray-600 animate-pulse"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={1.5}
+                          d="M13 10V3L4 14h7v7l9-11h-7z"
+                        />
                       </svg>
                     </div>
                     <h2 className="text-3xl font-semibold tracking-tight text-gray-900 mb-3">
@@ -2615,24 +3283,34 @@ const SidebarDashboard = () => {
                   {/* Domain Info */}
                   <div className="mb-8 p-6 bg-blue-50 rounded-2xl border border-blue-100">
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-base font-medium text-blue-900">Target Domain: {companyDomain}</span>
+                      <span className="text-base font-medium text-blue-900">
+                        Target Domain: {companyDomain}
+                      </span>
                     </div>
                   </div>
 
                   {/* Apple-style Carousel */}
                   <div className="relative h-24 mb-8 overflow-hidden">
-                    <div 
+                    <div
                       className="flex transition-transform duration-1000 ease-out"
-                      style={{ transform: `translateX(-${currentTaskIndex * 100}%)` }}
+                      style={{
+                        transform: `translateX(-${currentTaskIndex * 100}%)`,
+                      }}
                     >
                       {loadingSteps.map((task, index) => (
-                        <div key={index} className="w-full flex-shrink-0 text-center">
+                        <div
+                          key={index}
+                          className="w-full flex-shrink-0 text-center"
+                        >
                           <h3 className="text-xl font-medium text-gray-900 mb-2 transition-opacity duration-700">
                             {task.name}
                           </h3>
                           <p className="text-base text-gray-600 transition-opacity duration-700">
-                            {task.status === 'completed' ? 'Completed successfully' : 
-                             task.status === 'running' ? 'In progress...' : 'Pending'}
+                            {task.status === "completed"
+                              ? "Completed successfully"
+                              : task.status === "running"
+                              ? "In progress..."
+                              : "Pending"}
                           </p>
                         </div>
                       ))}
@@ -2645,11 +3323,11 @@ const SidebarDashboard = () => {
                       <div
                         key={index}
                         className={`w-3 h-3 rounded-full transition-all duration-700 ease-out ${
-                          task.status === 'completed'
-                            ? 'bg-gray-800 scale-110 shadow-md'
+                          task.status === "completed"
+                            ? "bg-gray-800 scale-110 shadow-md"
                             : index === currentTaskIndex
-                            ? 'bg-gray-600 scale-125 shadow-lg'
-                            : 'bg-gray-300'
+                            ? "bg-gray-600 scale-125 shadow-lg"
+                            : "bg-gray-300"
                         }`}
                       ></div>
                     ))}
@@ -2657,10 +3335,22 @@ const SidebarDashboard = () => {
 
                   <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
                     <div className="flex items-center text-gray-600">
-                      <svg className="w-6 h-6 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      <svg
+                        className="w-6 h-6 mr-3 text-gray-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                        />
                       </svg>
-                      <span className="text-base font-medium">Your data is being securely processed and encrypted</span>
+                      <span className="text-base font-medium">
+                        Your data is being securely processed and encrypted
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -2669,12 +3359,19 @@ const SidebarDashboard = () => {
               <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
                 {/* Apple-like Hero */}
                 <div className="text-center mb-8 sm:mb-10">
-                  <h1 className="text-4xl sm:text-5xl font-thin text-black leading-tight tracking-tight">Company Domain</h1>
-                  <p className="text-base sm:text-lg text-gray-600 font-light mt-3">Enter your company domain name</p>
+                  <h1 className="text-4xl sm:text-5xl font-thin text-black leading-tight tracking-tight">
+                    Company Domain
+                  </h1>
+                  <p className="text-base sm:text-lg text-gray-600 font-light mt-3">
+                    Enter your company domain name
+                  </p>
                 </div>
 
                 <div className="rounded-[28px] border border-gray-100 bg-white p-6 sm:p-8 shadow-sm">
-                  <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
+                  <form
+                    onSubmit={handleSubmit}
+                    className="space-y-5 sm:space-y-6"
+                  >
                     {/* Domain Input */}
                     <div className="space-y-3">
                       <label className="block text-base font-light text-black">
@@ -2686,40 +3383,66 @@ const SidebarDashboard = () => {
                           value={companyDomain}
                           onChange={(e) => handleDomainChange(e.target.value)}
                           placeholder="example.com"
-                          className={`w-full px-4 py-3 text-base font-light rounded-2xl border ${domainError ? 'border-red-300' : 'border-gray-200'} bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all`}
+                          className={`w-full px-4 py-3 text-base font-light rounded-2xl border ${
+                            domainError ? "border-red-300" : "border-gray-200"
+                          } bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all`}
                           required
                           disabled={isSubmitting}
                         />
                       </div>
-                      {domainError && <p className="text-red-500 text-sm font-light mt-2">{domainError}</p>}
+                      {domainError && (
+                        <p className="text-red-500 text-sm font-light mt-2">
+                          {domainError}
+                        </p>
+                      )}
                     </div>
 
                     {/* Submit Button */}
                     <div className="pt-3 sm:pt-4">
                       <button
                         type="submit"
-                        disabled={!companyDomain || !!domainError || isSubmitting}
+                        disabled={
+                          !companyDomain || !!domainError || isSubmitting
+                        }
                         className={`w-full py-3 px-5 bg-black text-white text-base font-medium rounded-full hover:bg-black/90 focus:outline-none focus:ring-4 focus:ring-black/10 transition-all shadow ${
-                          !companyDomain || domainError || isSubmitting ? 'opacity-60 cursor-not-allowed hover:-translate-y-0' : ''
+                          !companyDomain || domainError || isSubmitting
+                            ? "opacity-60 cursor-not-allowed hover:-translate-y-0"
+                            : ""
                         }`}
                       >
                         {isSubmitting && (
                           <span className="inline-flex items-center">
-                            <svg className="animate-spin h-5 w-5 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                            <svg
+                              className="animate-spin h-5 w-5 mr-2 text-white"
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              ></circle>
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8v8z"
+                              ></path>
                             </svg>
                             Starting...
                           </span>
                         )}
-                        {!isSubmitting && 'Start Analysis'}
+                        {!isSubmitting && "Start Analysis"}
                       </button>
                     </div>
                   </form>
                 </div>
               </div>
             )
-          ) : activeTab === 'campaign' ? (
+          ) : activeTab === "campaign" ? (
             <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
               {!selectedCampaignId && (
                 <>
@@ -2738,63 +3461,70 @@ const SidebarDashboard = () => {
                       className="px-6 py-3 bg-black text-white rounded-full hover:bg-black/90 focus:outline-none focus:ring-4 focus:ring-black/10 transition-all shadow text-base font-medium flex items-center gap-2"
                     >
                       <Plus className="h-5 w-5" />
-                      {showCreateCampaign ? 'Cancel' : 'New Campaign'}
+                      {showCreateCampaign ? "Cancel" : "New Campaign"}
                     </button>
                   </div>
 
                   {/* Create Campaign Form */}
                   {showCreateCampaign && (
-                <div className="mb-8 bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
-                  <h3 className="text-xl font-light text-black tracking-tight mb-6">
-                    Create New Campaign
-                  </h3>
-                  <form onSubmit={handleCreateCampaign} className="space-y-6">
-                    <div>
-                      <label className="block text-base font-light text-black mb-2">
-                        Title
-                      </label>
-                      <input
-                        type="text"
-                        value={newCampaignTitle}
-                        onChange={(e) => setNewCampaignTitle(e.target.value)}
-                        placeholder="Enter campaign title"
-                        className="w-full px-4 py-3 text-base font-light rounded-2xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-base font-light text-black mb-2">
-                        Description
-                      </label>
-                      <textarea
-                        value={newCampaignDescription}
-                        onChange={(e) => setNewCampaignDescription(e.target.value)}
-                        placeholder="Enter campaign description (optional)"
-                        rows={4}
-                        className="w-full px-4 py-3 text-base font-light rounded-2xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all resize-none"
-                      />
-                    </div>
-                    <div className="flex items-center justify-end gap-4">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowCreateCampaign(false);
-                          setNewCampaignTitle('');
-                          setNewCampaignDescription('');
-                        }}
-                        className="px-6 py-3 bg-gray-100 text-gray-900 rounded-full hover:bg-gray-200 transition-all duration-200 text-base font-light"
+                    <div className="mb-8 bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
+                      <h3 className="text-xl font-light text-black tracking-tight mb-6">
+                        Create New Campaign
+                      </h3>
+                      <form
+                        onSubmit={handleCreateCampaign}
+                        className="space-y-6"
                       >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        className="px-6 py-3 bg-black text-white rounded-full hover:bg-black/90 focus:outline-none focus:ring-4 focus:ring-black/10 transition-all shadow text-base font-medium"
-                      >
-                        Create Campaign
-                      </button>
+                        <div>
+                          <label className="block text-base font-light text-black mb-2">
+                            Title
+                          </label>
+                          <input
+                            type="text"
+                            value={newCampaignTitle}
+                            onChange={(e) =>
+                              setNewCampaignTitle(e.target.value)
+                            }
+                            placeholder="Enter campaign title"
+                            className="w-full px-4 py-3 text-base font-light rounded-2xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-base font-light text-black mb-2">
+                            Description
+                          </label>
+                          <textarea
+                            value={newCampaignDescription}
+                            onChange={(e) =>
+                              setNewCampaignDescription(e.target.value)
+                            }
+                            placeholder="Enter campaign description (optional)"
+                            rows={4}
+                            className="w-full px-4 py-3 text-base font-light rounded-2xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all resize-none"
+                          />
+                        </div>
+                        <div className="flex items-center justify-end gap-4">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowCreateCampaign(false);
+                              setNewCampaignTitle("");
+                              setNewCampaignDescription("");
+                            }}
+                            className="px-6 py-3 bg-gray-100 text-gray-900 rounded-full hover:bg-gray-200 transition-all duration-200 text-base font-light"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            className="px-6 py-3 bg-black text-white rounded-full hover:bg-black/90 focus:outline-none focus:ring-4 focus:ring-black/10 transition-all shadow text-base font-medium"
+                          >
+                            Create Campaign
+                          </button>
+                        </div>
+                      </form>
                     </div>
-                  </form>
-                </div>
                   )}
                 </>
               )}
@@ -2805,17 +3535,22 @@ const SidebarDashboard = () => {
                   return (
                     <div className="text-center py-12">
                       <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-                      <p className="text-sm font-light text-gray-600 mt-4">Loading campaigns...</p>
+                      <p className="text-sm font-light text-gray-600 mt-4">
+                        Loading campaigns...
+                      </p>
                     </div>
                   );
                 }
 
                 if (selectedCampaignId) {
-                  const selectedCampaign = campaigns.find(c => c.id === selectedCampaignId);
+                  const selectedCampaign = campaigns.find(
+                    (c) => c.id === selectedCampaignId
+                  );
                   if (!selectedCampaign) {
                     return (
                       <div className="bg-white rounded-3xl p-8 border border-red-100 text-center text-sm text-red-600">
-                        Selected campaign could not be found. Please go back and try again.
+                        Selected campaign could not be found. Please go back and
+                        try again.
                         <div className="mt-4">
                           <button
                             onClick={() => setSelectedCampaignId(null)}
@@ -2887,7 +3622,7 @@ const SidebarDashboard = () => {
                               <ChevronRight className="h-4 w-4" />
                             </button>
                             <button
-                              onClick={() => handleDeleteCampaign(campaign.id)}
+                              onClick={() => setDeleteId(campaign.id)}
                               className="p-2 text-gray-400 hover:text-red-600 transition-colors"
                               title="Delete campaign"
                             >
@@ -2901,9 +3636,12 @@ const SidebarDashboard = () => {
                           <div className="px-6 pb-6 pt-0 border-t border-gray-100">
                             <div className="pt-6 space-y-4">
                               <div>
-                                <h4 className="text-sm font-medium text-gray-900 mb-2">Description</h4>
+                                <h4 className="text-sm font-medium text-gray-900 mb-2">
+                                  Description
+                                </h4>
                                 <p className="text-sm font-light text-gray-700">
-                                  {campaign.description || 'No description provided'}
+                                  {campaign.description ||
+                                    "No description provided"}
                                 </p>
                               </div>
                             </div>
@@ -2911,28 +3649,478 @@ const SidebarDashboard = () => {
                         )}
                       </div>
                     ))}
+                    {deleteId && (
+  <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
+    <div className="bg-white p-6 rounded-xl shadow-xl w-[90%] max-w-sm">
+      <h2 className="text-lg font-medium text-gray-800">Delete Campaign?</h2>
+
+      <p className="text-sm text-gray-500 mt-2">
+        Are you sure you want to delete this campaign?
+      </p>
+
+      <div className="flex justify-end gap-3 mt-6">
+        <button
+          onClick={() => setDeleteId(null)}
+          className="px-4 py-2 rounded-lg text-sm bg-gray-100 hover:bg-gray-200"
+        >
+          Cancel
+        </button>
+
+        <button
+          onClick={() => {
+            handleDeleteCampaign(deleteId!);
+            setDeleteId(null);
+          }}
+          className="px-4 py-2 rounded-lg text-sm bg-black text-white hover:bg-red-700"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
                   </div>
                 );
               })()}
             </div>
+          ): activeTab === "analyze" ? (
+  <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12 sm:py-16 space-y-12">
+
+  {/* 🔍 ANALYZE SECTION */}
+  <h2 className="text-3xl font-bold text-gray-900 tracking-tight">
+      Page Analysis
+    </h2>
+  <div
+    className="
+      mt-10 p-8 rounded-3xl 
+      bg-white/5 backdrop-blur-xl 
+      border border-white/10 
+      shadow-[0_0_40px_rgba(0,0,0,0.3)]
+      transition-all
+    "
+  >
+    
+
+    {!companyDomain ? (
+      <p className="text-gray-400 text-lg">No content available to analyze.</p>
+    ) : (
+      <div className="space-y-10 text-gray-200">
+
+        {/* SUMMARY CARDS */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          
+          {/* SEO SCORE */}
+          <div
+            className="
+              p-5 rounded-2xl 
+              bg-gradient-to-br from-blue-600/20 to-indigo-700/20 
+              border border-blue-500/30
+            "
+          >
+            <p className="text-sm text-gray-300">SEO Score</p>
+            <p className="text-3xl font-bold text-blue-400 mt-1">
+              {Math.min(100, Math.floor(companyDomain.length / 20))}
+            </p>
+          </div>
+
+          {/* WORD COUNT */}
+          <div
+            className="
+              p-5 rounded-2xl 
+              bg-gradient-to-br from-indigo-600/20 to-purple-700/20 
+              border border-indigo-500/30
+            "
+          >
+            <p className="text-sm text-gray-300">Word Count</p>
+            <p className="text-3xl font-bold text-indigo-400 mt-1">
+              {(companyDomain.content || "").split(/\s+/).length}
+            </p>
+          </div>
+
+          {/* READABILITY */}
+          <div
+            className="
+              p-5 rounded-2xl 
+              bg-gradient-to-br from-purple-600/20 to-pink-700/20 
+              border border-purple-500/30
+            "
+          >
+            <p className="text-sm text-gray-300">Readability</p>
+            <p className="text-xl font-semibold text-purple-300 mt-1">
+              {(companyDomain.content.length > 800 ? "Good" : "Needs Improvement")}
+            </p>
+          </div>
+
+        </div>
+
+        {/* TITLE */}
+        <div>
+          <h3 className="text-xl font-semibold text-blue-300 mb-2">Page Title</h3>
+          <p className="text-gray-300 bg-white/5 p-4 rounded-xl border border-gray-700/50">
+            {companyDomain.title || "No title found"}
+          </p>
+        </div>
+
+        {/* META DESCRIPTION */}
+        <div>
+          <h3 className="text-xl font-semibold text-blue-300 mb-2">Meta Description</h3>
+          <p className="text-gray-300 bg-white/5 p-4 rounded-xl border border-gray-700/50">
+            {(companyDomain.content || "").substring(0, 160)}...
+          </p>
+        </div>
+
+        {/* HEADINGS */}
+        <div>
+          <h3 className="text-xl font-semibold text-blue-300 mb-3">Heading Structure</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {["h1", "h2", "h3", "h4"].map(tag => {
+              const count = (companyDomain.content.match(new RegExp(`<${tag}`, "gi")) || []).length;
+              return (
+                <div
+                  key={tag}
+                  className="
+                    p-4 rounded-xl border border-gray-700/50 bg-white/5 
+                    text-center hover:bg-blue-500/10 transition
+                  "
+                >
+                  <p className="font-semibold text-gray-200">{tag.toUpperCase()}</p>
+                  <p className="text-blue-400 font-bold">{count}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* KEYWORD OCCURRENCES */}
+        <div>
+          <h3 className="text-xl font-semibold text-blue-300 mb-3">Keyword Occurrences</h3>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {(queryData || []).slice(0, 10).map((q) => (
+              <div
+                key={q.query}
+                className="
+                  flex justify-between items-center 
+                  p-4 rounded-xl bg-white/5 border border-gray-700/50
+                "
+              >
+                <span className="text-gray-200">{q.query}</span>
+                <span className="text-blue-400 font-semibold">{q.occurrences}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+      </div>
+    )}
+  </div>
+</div>
+
+): activeTab === "audit" ? (
+  <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12 sm:py-16 space-y-12">
+
+    {/* Audit Completed Toast */}
+    {auditComplete && (
+      <div className="fixed bottom-6 right-6 z-50">
+        <div className="bg-black text-white px-6 py-3 rounded-2xl shadow-xl flex items-center gap-3 animate-fadeInUp border border-white/20 backdrop-blur-sm">
+          <svg
+            className="h-4 w-4 flex-shrink-0"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={3}
+              d="M5 13l4 4L19 7"
+            />
+          </svg>
+          <span className="font-medium text-sm">Audit Completed!</span>
+        </div>
+      </div>
+    )}
+
+    {/* Audit Card */}
+    <div className="bg-white/50 backdrop-blur-md rounded-3xl shadow-2xl border border-gray-200/30 p-8 flex flex-col gap-6 transition-all hover:scale-[1.01] duration-300">
+      
+      <h2 className="text-3xl font-bold text-gray-900 tracking-tight flex items-center gap-3">
+        <Globe className="w-6 h-6 text-blue-500" />
+        Run Domain Audit
+      </h2>
+
+      <p className="text-gray-600 text-sm md:text-base">
+        Audit your domain to fetch Lighthouse metrics, SEO insights, accessibility scores, and performance data.
+      </p>
+
+      {/* URL Input + Start Button */}
+      <div className="flex flex-col sm:flex-row items-center gap-4 w-full">
+        <div className="flex-1 bg-gray-50/70 backdrop-blur-sm border border-gray-200 rounded-xl px-5 py-3 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow duration-300">
+          <span className="text-blue-600 font-semibold truncate">
+            {companyDomain || "No domain available"}
+          </span>
+        </div>
+
+        <button
+          onClick={() => handleRunAudit(companyDomain)}
+          disabled={auditLoading || !companyDomain}
+          className={`px-6 py-3 text-white font-semibold rounded-2xl shadow-lg flex items-center justify-center gap-2 transition-all
+            ${
+              auditLoading
+                ? "bg-black animate-gradient-x cursor-not-allowed"
+                : "bg-black  active:scale-95"
+            }`}
+        >
+          {auditLoading ? (
+            <>
+              <svg
+                className="animate-spin h-5 w-5 text-white"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8v8H4z"
+                />
+              </svg>
+              Running Audit…
+            </>
           ) : (
-            <div style={{
-              background: 'rgba(255, 255, 255, 0.8)',
-              backdropFilter: 'saturate(180%) blur(20px)',
-              WebkitBackdropFilter: 'saturate(180%) blur(20px)',
-              border: '0.5px solid rgba(0, 0, 0, 0.1)',
-              borderRadius: '16px',
-              padding: '48px',
-              textAlign: 'center'
-            }}>
-              <p style={{ 
-                fontSize: '17px',
-                fontWeight: '300',
-                letterSpacing: '0.011em',
-                color: '#86868b',
-                margin: '0'
-              }}>
-                Content for {tabs.find(t => t.id === activeTab)?.label || 'Dashboard'} will appear here
+            "Start Audit"
+          )}
+        </button>
+      </div>
+
+      {/* Audit Result */}
+      {auditResult && (
+        <div className="bg-white/60 backdrop-blur-md rounded-2xl border border-gray-200/30 p-6 shadow-lg mt-6">
+          <h3 className="text-lg font-bold text-gray-900 mb-6">
+            Audit Result
+          </h3>
+
+          {/* Metrics Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
+            {[
+              { label: "Performance", value: auditResult.performance },
+              { label: "SEO", value: auditResult.seo },
+              { label: "Accessibility", value: auditResult.accessibility },
+              { label: "Best Practices", value: auditResult.bestPractices },
+              { label: "PWA (Progressive Web App)", value: auditResult.pwa },
+            ].map(({ label, value }) => {
+              const percent = value ? Math.round(value * 100) : 0;
+              const gradient =
+                "linear-gradient(90deg, hsl(10, 10%, 10%), hsl(920, 40%, 40%))";
+
+              return (
+                <div key={label} className="flex flex-col gap-2">
+                  <div className="flex justify-between text-sm font-semibold text-gray-800 mb-1">
+                    <span>{label}</span>
+                    <span>{percent}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200/40 rounded-full h-3 overflow-hidden">
+                    <div
+                      className="h-3 rounded-full transition-all duration-700 shadow-md"
+                      style={{ width: `${percent}%`, background: gradient }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Collapsible Advanced Metrics */}
+          {auditResult.audits && (
+            <details className="border border-gray-200/40 rounded-xl p-4 bg-white/50 backdrop-blur-sm shadow-inner group">
+              <summary className="cursor-pointer font-semibold text-gray-800 text-sm flex justify-between items-center hover:text-blue-600 transition-colors">
+                Advanced Metrics
+                <span className="transform group-open:rotate-90 transition-transform">
+                  ▶
+                </span>
+              </summary>
+
+              <div className="mt-4 space-y-3 text-sm text-gray-700">
+                {Object.entries(auditResult.audits).map(([key, value]) => {
+                  const fullForms = {
+                    fcp: "First Contentful Paint",
+                    lcp: "Largest Contentful Paint",
+                    cls: "Cumulative Layout Shift",
+                    tbt: "Total Blocking Time",
+                    speedIndex: "Speed Index",
+                  };
+
+                  return (
+                    <div
+                      key={key}
+                      className="flex justify-between px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                    >
+                      <span className="font-medium text-gray-900">
+                        {key.toUpperCase()} ({fullForms[key] || key})
+                      </span>
+                      <span className="font-mono">{value}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </details>
+          )}
+        </div>
+      )}
+    </div>
+  </div>
+): activeTab === "publish" ? (
+  <div className="max-w-5xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
+
+  {/* HEADER */}
+  <div className="flex items-center gap-3 mb-10">
+    <h2 className="text-3xl font-bold text-gray-900 tracking-tight">
+      Publish Article
+    </h2>
+  </div>
+
+  {/* TOAST NOTIFICATIONS */}
+  {(publishSuccess || publishError) && (
+    <div
+      className={`
+        fixed top-6 right-6 z-[9999] px-5 py-4 rounded-xl shadow-2xl
+        text-white flex items-center gap-3 animate-slide-in
+        transition-opacity duration-500
+        ${publishSuccess ? "bg-green-600" : "bg-red-600"}
+      `}
+    >
+      {publishSuccess ? (
+        <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+      ) : (
+        <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      )}
+
+      <span className="font-medium">
+        {publishSuccess ? "Article Published Successfully!" : publishError}
+      </span>
+    </div>
+  )}
+
+  {/* MAIN CARD */}
+  <div
+    className="
+      bg-white/60 border border-gray-200 backdrop-blur-2xl 
+      rounded-3xl shadow-xl p-10 space-y-12
+    "
+  >
+
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+
+      {/* PRIMARY KEYWORD */}
+      <div className="space-y-2">
+        <label className="font-semibold text-gray-700 text-sm tracking-wide">
+          Primary Keyword
+        </label>
+        <input
+          className="
+            h-14 px-5 rounded-2xl border border-gray-300 bg-white/70 
+            focus:ring-2 focus:ring-blue-500 w-full transition text-gray-900 
+            shadow-sm
+          "
+          placeholder="Ex: Legal Expert Tips"
+          value={primaryKeyword}
+          onChange={(e) => setPrimaryKeyword(e.target.value)}
+        />
+      </div>
+
+      {/* CATEGORY */}
+      <div className="space-y-2">
+        <label className="font-semibold text-gray-700 text-sm tracking-wide">
+          Category
+        </label>
+        <select
+          className="
+            h-14 px-5 rounded-2xl border border-gray-300 bg-white/70 
+            focus:ring-2 focus:ring-blue-500 w-full transition text-gray-900
+            shadow-sm cursor-pointer
+          "
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+        >
+          <option value="">Select Category</option>
+          <option value="legal">Legal</option>
+          <option value="sports">Sports</option>
+          <option value="finance">Finance</option>
+          <option value="tech">Tech</option>
+        </select>
+      </div>
+    </div>
+
+    {/* PUBLISH BUTTON */}
+    <div className="pt-4">
+      <button
+        onClick={handlePublish}
+        disabled={publishLoading}
+        className={`
+          w-[210px] h-16 text-white font-semibold rounded-2xl shadow-xl 
+          flex items-center justify-center gap-3 text-lg transition-all
+          ${
+            publishLoading
+              ? "bg-black  cursor-not-allowed"
+              : "bg-black hover:scale-[1.03] hover:shadow-2xl"
+          }
+        `}
+      >
+        {publishLoading ? (
+          <>
+            <svg className="animate-spin h-6 w-6 text-white" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            </svg>
+            Publishing…
+          </>
+        ) : (
+          "Publish Now"
+        )}
+      </button>
+    </div>
+  </div>
+</div>
+
+
+)  : (
+            <div
+              style={{
+                background: "rgba(255, 255, 255, 0.8)",
+                backdropFilter: "saturate(180%) blur(20px)",
+                WebkitBackdropFilter: "saturate(180%) blur(20px)",
+                border: "0.5px solid rgba(0, 0, 0, 0.1)",
+                borderRadius: "16px",
+                padding: "48px",
+                textAlign: "center",
+              }}
+            >
+              <p
+                style={{
+                  fontSize: "17px",
+                  fontWeight: "300",
+                  letterSpacing: "0.011em",
+                  color: "#86868b",
+                  margin: "0",
+                }}
+              >
+                Content for{" "}
+                {tabs.find((t) => t.id === activeTab)?.label || "Dashboard"}{" "}
+                will appear here
               </p>
             </div>
           )}
@@ -2944,21 +4132,36 @@ const SidebarDashboard = () => {
 
 // Campaign Structure View Component
 interface CampaignStructureViewProps {
-  campaign: { id: number; title: string; description: string | null; createdAt: string; updatedAt: string };
+  campaign: {
+    id: number;
+    title: string;
+    description: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
   onBack: () => void;
 }
 
-const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign, onBack }) => {
+const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({
+  campaign,
+  onBack,
+}) => {
   const CAMPAIGN_API_BASE = `${API_BASE_URL}/api/campaigns`;
-  const [campaignStructure, setCampaignStructure] = useState<CampaignStructure>({ topics: [] });
+  const [campaignStructure, setCampaignStructure] = useState<CampaignStructure>(
+    { topics: [] }
+  );
   const [structureLoading, setStructureLoading] = useState(true);
   const [structureError, setStructureError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [aiLoading, setAiLoading] = useState<string | null>(null);
 
   const [expandedTopics, setExpandedTopics] = useState<Set<number>>(new Set());
-  const [expandedPillarPages, setExpandedPillarPages] = useState<Set<number>>(new Set());
-  const [expandedSubPages, setExpandedSubPages] = useState<Set<number>>(new Set());
+  const [expandedPillarPages, setExpandedPillarPages] = useState<Set<number>>(
+    new Set()
+  );
+  const [expandedSubPages, setExpandedSubPages] = useState<Set<number>>(
+    new Set()
+  );
   const [selectedTopics, setSelectedTopics] = useState<Set<number>>(new Set());
 
   // Modal states
@@ -2966,100 +4169,121 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
   const [showAddPillarModal, setShowAddPillarModal] = useState(false);
   const [showAddSubPageModal, setShowAddSubPageModal] = useState(false);
   const [showAddKeywordModal, setShowAddKeywordModal] = useState(false);
-  const [addKeywordContext, setAddKeywordContext] = useState<{ type: 'pillar' | 'subpage'; topicId: number; pageId: number } | null>(null);
+  const [addKeywordContext, setAddKeywordContext] = useState<{
+    type: "pillar" | "subpage";
+    topicId: number;
+    pageId: number;
+  } | null>(null);
 
   // Form states
-  const [newTopicTitle, setNewTopicTitle] = useState('');
-  const [newPillarTitle, setNewPillarTitle] = useState('');
-  const [newSubPageTitle, setNewSubPageTitle] = useState('');
-  const [newKeywordTerm, setNewKeywordTerm] = useState('');
-  const [newKeywordVolume, setNewKeywordVolume] = useState('');
-  const [newKeywordDifficulty, setNewKeywordDifficulty] = useState('Medium');
+  const [newTopicTitle, setNewTopicTitle] = useState("");
+  const [newPillarTitle, setNewPillarTitle] = useState("");
+  const [newSubPageTitle, setNewSubPageTitle] = useState("");
+  const [newKeywordTerm, setNewKeywordTerm] = useState("");
+  const [newKeywordVolume, setNewKeywordVolume] = useState("");
+  const [newKeywordDifficulty, setNewKeywordDifficulty] = useState("Medium");
 
   const [targetTopicId, setTargetTopicId] = useState<number | null>(null);
   const { toast } = useToast();
 
   const getAuthHeaders = useCallback((): HeadersInit => {
-    const token = localStorage.getItem('authToken');
+    const token = localStorage.getItem("authToken");
     return {
-      'Content-Type': 'application/json',
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
   }, []);
 
   const handleUnauthorized = useCallback(() => {
-    localStorage.removeItem('authToken');
-    window.location.href = '/auth';
+    localStorage.removeItem("authToken");
+    window.location.href = "/auth";
   }, []);
 
-  const mutateStructure = useCallback(async (endpoint: string, init: RequestInit = {}, opts: { successMessage?: string; silent?: boolean } = {}) => {
-    if (!opts.silent) {
-      setSyncing(true);
-    }
-    try {
-      const response = await fetch(endpoint, {
-        ...init,
-        headers: getAuthHeaders()
-      });
-
-      if (response.status === 401 || response.status === 403) {
-        handleUnauthorized();
-        return;
-      }
-
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Unable to update campaign structure');
-      }
-
-      if (data.structure) {
-        setCampaignStructure(data.structure);
-      }
-
-      if (opts.successMessage) {
-        toast({ title: opts.successMessage });
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Something went wrong';
-      toast({
-        title: 'Action failed',
-        description: message,
-        variant: 'destructive'
-      });
-      throw error;
-    } finally {
+  const mutateStructure = useCallback(
+    async (
+      endpoint: string,
+      init: RequestInit = {},
+      opts: { successMessage?: string; silent?: boolean } = {}
+    ) => {
       if (!opts.silent) {
-        setSyncing(false);
+        setSyncing(true);
       }
-    }
-  }, [getAuthHeaders, handleUnauthorized, toast]);
+      try {
+        const response = await fetch(endpoint, {
+          ...init,
+          headers: getAuthHeaders(),
+        });
 
-  const fetchStructure = useCallback(async (targetCampaignId: number) => {
-    setStructureLoading(true);
-    setStructureError(null);
-    try {
-      const response = await fetch(`${CAMPAIGN_API_BASE}/${targetCampaignId}/structure`, {
-        headers: getAuthHeaders()
-      });
+        if (response.status === 401 || response.status === 403) {
+          handleUnauthorized();
+          return;
+        }
 
-      if (response.status === 401 || response.status === 403) {
-        handleUnauthorized();
-        return;
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || "Unable to update campaign structure");
+        }
+
+        if (data.structure) {
+          setCampaignStructure(data.structure);
+        }
+
+        if (opts.successMessage) {
+          toast({ title: opts.successMessage });
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Something went wrong";
+        toast({
+          title: "Action failed",
+          description: message,
+          variant: "destructive",
+        });
+        throw error;
+      } finally {
+        if (!opts.silent) {
+          setSyncing(false);
+        }
       }
+    },
+    [getAuthHeaders, handleUnauthorized, toast]
+  );
 
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Unable to load campaign structure');
+  const fetchStructure = useCallback(
+    async (targetCampaignId: number) => {
+      setStructureLoading(true);
+      setStructureError(null);
+      try {
+        const response = await fetch(
+          `${CAMPAIGN_API_BASE}/${targetCampaignId}/structure`,
+          {
+            headers: getAuthHeaders(),
+          }
+        );
+
+        if (response.status === 401 || response.status === 403) {
+          handleUnauthorized();
+          return;
+        }
+
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || "Unable to load campaign structure");
+        }
+
+        setCampaignStructure(data.structure);
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Unable to load campaign structure";
+        setStructureError(message);
+      } finally {
+        setStructureLoading(false);
       }
-
-      setCampaignStructure(data.structure);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to load campaign structure';
-      setStructureError(message);
-    } finally {
-      setStructureLoading(false);
-    }
-  }, [CAMPAIGN_API_BASE, getAuthHeaders, handleUnauthorized]);
+    },
+    [CAMPAIGN_API_BASE, getAuthHeaders, handleUnauthorized]
+  );
 
   useEffect(() => {
     fetchStructure(campaign.id);
@@ -3078,63 +4302,91 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
     });
   }, [topicsSnapshot]);
 
-  const triggerAiTopics = useCallback(async (targetCampaignId: number) => {
-    setAiLoading('topic');
-    try {
-      await mutateStructure(`${CAMPAIGN_API_BASE}/${targetCampaignId}/topics/ai`, {
-        method: 'POST',
-        body: JSON.stringify({ count: 1 })
-      }, { successMessage: 'AI topic added', silent: true });
-    } catch {
-      // errors handled inside mutateStructure
-    } finally {
-      setAiLoading(null);
-    }
-  }, [mutateStructure, CAMPAIGN_API_BASE]);
+  const triggerAiTopics = useCallback(
+    async (targetCampaignId: number) => {
+      setAiLoading("topic");
+      try {
+        await mutateStructure(
+          `${CAMPAIGN_API_BASE}/${targetCampaignId}/topics/ai`,
+          {
+            method: "POST",
+            body: JSON.stringify({ count: 1 }),
+          },
+          { successMessage: "AI topic added", silent: true }
+        );
+      } catch {
+        // errors handled inside mutateStructure
+      } finally {
+        setAiLoading(null);
+      }
+    },
+    [mutateStructure, CAMPAIGN_API_BASE]
+  );
 
-  const triggerAiPillar = useCallback(async (topicId: number) => {
-    const key = `pillar-${topicId}`;
-    setAiLoading(key);
-    try {
-      await mutateStructure(`${CAMPAIGN_API_BASE}/topics/${topicId}/pillar/ai`, {
-        method: 'POST'
-      }, { successMessage: 'AI pillar page generated', silent: true });
-    } catch {
-      // handled upstream
-    } finally {
-      setAiLoading(null);
-    }
-  }, [mutateStructure, CAMPAIGN_API_BASE]);
+  const triggerAiPillar = useCallback(
+    async (topicId: number) => {
+      const key = `pillar-${topicId}`;
+      setAiLoading(key);
+      try {
+        await mutateStructure(
+          `${CAMPAIGN_API_BASE}/topics/${topicId}/pillar/ai`,
+          {
+            method: "POST",
+          },
+          { successMessage: "AI pillar page generated", silent: true }
+        );
+      } catch {
+        // handled upstream
+      } finally {
+        setAiLoading(null);
+      }
+    },
+    [mutateStructure, CAMPAIGN_API_BASE]
+  );
 
-  const triggerAiSubPage = useCallback(async (topicId: number) => {
-    const key = `subpage-${topicId}`;
-    setAiLoading(key);
-    try {
-      await mutateStructure(`${CAMPAIGN_API_BASE}/topics/${topicId}/subpages/ai`, {
-        method: 'POST',
-        body: JSON.stringify({ count: 1 })
-      }, { successMessage: 'AI sub-page generated', silent: true });
-    } catch {
-      // handled upstream
-    } finally {
-      setAiLoading(null);
-    }
-  }, [mutateStructure, CAMPAIGN_API_BASE]);
+  const triggerAiSubPage = useCallback(
+    async (topicId: number) => {
+      const key = `subpage-${topicId}`;
+      setAiLoading(key);
+      try {
+        await mutateStructure(
+          `${CAMPAIGN_API_BASE}/topics/${topicId}/subpages/ai`,
+          {
+            method: "POST",
+            body: JSON.stringify({ count: 1 }),
+          },
+          { successMessage: "AI sub-page generated", silent: true }
+        );
+      } catch {
+        // handled upstream
+      } finally {
+        setAiLoading(null);
+      }
+    },
+    [mutateStructure, CAMPAIGN_API_BASE]
+  );
 
-  const triggerAiKeywords = useCallback(async (pageId: number) => {
-    const key = `keyword-${pageId}`;
-    setAiLoading(key);
-    try {
-      await mutateStructure(`${CAMPAIGN_API_BASE}/pages/${pageId}/keywords/ai`, {
-        method: 'POST',
-        body: JSON.stringify({ count: 4 })
-      }, { successMessage: 'AI keywords added', silent: true });
-    } catch {
-      // handled upstream
-    } finally {
-      setAiLoading(null);
-    }
-  }, [mutateStructure, CAMPAIGN_API_BASE]);
+  const triggerAiKeywords = useCallback(
+    async (pageId: number) => {
+      const key = `keyword-${pageId}`;
+      setAiLoading(key);
+      try {
+        await mutateStructure(
+          `${CAMPAIGN_API_BASE}/pages/${pageId}/keywords/ai`,
+          {
+            method: "POST",
+            body: JSON.stringify({ count: 4 }),
+          },
+          { successMessage: "AI keywords added", silent: true }
+        );
+      } catch {
+        // handled upstream
+      } finally {
+        setAiLoading(null);
+      }
+    },
+    [mutateStructure, CAMPAIGN_API_BASE]
+  );
 
   const toggleTopic = (id: number) => {
     const newSet = new Set(expandedTopics);
@@ -3169,7 +4421,7 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
       toast({
         title: "No Topics Selected",
         description: "Please select at least one topic to continue",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
@@ -3182,12 +4434,12 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
 
   const handleAddTopic = (isAI: boolean) => {
     if (isAI) {
-      if (aiLoading === 'topic') return;
+      if (aiLoading === "topic") return;
       triggerAiTopics(campaign.id);
       return;
     }
     setTargetTopicId(null);
-    setNewTopicTitle('');
+    setNewTopicTitle("");
     setShowAddTopicModal(true);
   };
 
@@ -3196,17 +4448,21 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
       toast({
         title: "Title Required",
         description: "Please enter a topic title",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
     try {
-      await mutateStructure(`${CAMPAIGN_API_BASE}/${campaign.id}/topics`, {
-        method: 'POST',
-        body: JSON.stringify({ title: newTopicTitle.trim() })
-      }, { successMessage: "Topic added" });
+      await mutateStructure(
+        `${CAMPAIGN_API_BASE}/${campaign.id}/topics`,
+        {
+          method: "POST",
+          body: JSON.stringify({ title: newTopicTitle.trim() }),
+        },
+        { successMessage: "Topic added" }
+      );
       setShowAddTopicModal(false);
-      setNewTopicTitle('');
+      setNewTopicTitle("");
     } catch {
       // errors handled upstream
     }
@@ -3218,9 +4474,9 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
       triggerAiPillar(topicId);
       return;
     }
-    const topic = campaignStructure.topics.find(t => t.id === topicId);
+    const topic = campaignStructure.topics.find((t) => t.id === topicId);
     setTargetTopicId(topicId);
-    setNewPillarTitle(topic?.pillarPage?.title || '');
+    setNewPillarTitle(topic?.pillarPage?.title || "");
     setShowAddPillarModal(true);
   };
 
@@ -3229,19 +4485,23 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
       toast({
         title: "Title Required",
         description: "Please enter a pillar page title",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
     try {
-      await mutateStructure(`${CAMPAIGN_API_BASE}/topics/${targetTopicId}/pillar`, {
-        method: 'POST',
-        body: JSON.stringify({
-          title: newPillarTitle.trim()
-        })
-      }, { successMessage: "Pillar page saved" });
+      await mutateStructure(
+        `${CAMPAIGN_API_BASE}/topics/${targetTopicId}/pillar`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            title: newPillarTitle.trim(),
+          }),
+        },
+        { successMessage: "Pillar page saved" }
+      );
       setShowAddPillarModal(false);
-      setNewPillarTitle('');
+      setNewPillarTitle("");
       setTargetTopicId(null);
     } catch {
       // handled upstream
@@ -3255,7 +4515,7 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
       return;
     }
     setTargetTopicId(topicId);
-    setNewSubPageTitle('');
+    setNewSubPageTitle("");
     setShowAddSubPageModal(true);
   };
 
@@ -3264,35 +4524,44 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
       toast({
         title: "Title Required",
         description: "Please enter a sub-page title",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
     try {
-      await mutateStructure(`${CAMPAIGN_API_BASE}/topics/${targetTopicId}/subpages`, {
-        method: 'POST',
-        body: JSON.stringify({
-          title: newSubPageTitle.trim()
-        })
-      }, { successMessage: "Sub-page added" });
+      await mutateStructure(
+        `${CAMPAIGN_API_BASE}/topics/${targetTopicId}/subpages`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            title: newSubPageTitle.trim(),
+          }),
+        },
+        { successMessage: "Sub-page added" }
+      );
       setShowAddSubPageModal(false);
-      setNewSubPageTitle('');
+      setNewSubPageTitle("");
       setTargetTopicId(null);
     } catch {
       // handled upstream
     }
   };
 
-  const handleAddKeyword = (type: 'pillar' | 'subpage', topicId: number, pageId: number, isAI: boolean) => {
+  const handleAddKeyword = (
+    type: "pillar" | "subpage",
+    topicId: number,
+    pageId: number,
+    isAI: boolean
+  ) => {
     if (isAI) {
       if (aiLoading === `keyword-${pageId}`) return;
       triggerAiKeywords(pageId);
       return;
     }
     setAddKeywordContext({ type, topicId, pageId });
-    setNewKeywordTerm('');
-    setNewKeywordVolume('');
-    setNewKeywordDifficulty('Medium');
+    setNewKeywordTerm("");
+    setNewKeywordVolume("");
+    setNewKeywordDifficulty("Medium");
     setShowAddKeywordModal(true);
   };
 
@@ -3301,23 +4570,29 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
       toast({
         title: "Keyword Required",
         description: "Please enter a keyword term",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
     try {
-      await mutateStructure(`${CAMPAIGN_API_BASE}/pages/${addKeywordContext.pageId}/keywords`, {
-        method: 'POST',
-        body: JSON.stringify({
-          term: newKeywordTerm.trim(),
-          volume: newKeywordVolume ? parseInt(newKeywordVolume, 10) : undefined,
-          difficulty: newKeywordDifficulty
-        })
-      }, { successMessage: "Keyword added" });
+      await mutateStructure(
+        `${CAMPAIGN_API_BASE}/pages/${addKeywordContext.pageId}/keywords`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            term: newKeywordTerm.trim(),
+            volume: newKeywordVolume
+              ? parseInt(newKeywordVolume, 10)
+              : undefined,
+            difficulty: newKeywordDifficulty,
+          }),
+        },
+        { successMessage: "Keyword added" }
+      );
       setShowAddKeywordModal(false);
-      setNewKeywordTerm('');
-      setNewKeywordVolume('');
-      setNewKeywordDifficulty('Medium');
+      setNewKeywordTerm("");
+      setNewKeywordVolume("");
+      setNewKeywordDifficulty("Medium");
       setAddKeywordContext(null);
     } catch {
       // handled upstream
@@ -3325,37 +4600,56 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
   };
 
   const handleDeleteTopic = (topicId: number) => {
-    if (!confirm('Are you sure you want to delete this topic?')) return;
-    mutateStructure(`${CAMPAIGN_API_BASE}/topics/${topicId}`, {
-      method: 'DELETE'
-    }, { successMessage: "Topic deleted" }).catch(() => {
+    if (!confirm("Are you sure you want to delete this topic?")) return;
+    mutateStructure(
+      `${CAMPAIGN_API_BASE}/topics/${topicId}`,
+      {
+        method: "DELETE",
+      },
+      { successMessage: "Topic deleted" }
+    ).catch(() => {
       /* handled upstream */
     });
   };
 
   const handleDeletePillarPage = (topicId: number) => {
-    if (!confirm('Are you sure you want to delete this pillar page?')) return;
-    mutateStructure(`${CAMPAIGN_API_BASE}/topics/${topicId}/pillar`, {
-      method: 'DELETE'
-    }, { successMessage: "Pillar page deleted" }).catch(() => {
+    if (!confirm("Are you sure you want to delete this pillar page?")) return;
+    mutateStructure(
+      `${CAMPAIGN_API_BASE}/topics/${topicId}/pillar`,
+      {
+        method: "DELETE",
+      },
+      { successMessage: "Pillar page deleted" }
+    ).catch(() => {
       /* handled upstream */
     });
   };
 
   const handleDeleteSubPage = (topicId: number, subPageId: number) => {
-    if (!confirm('Are you sure you want to delete this sub-page?')) return;
-    mutateStructure(`${CAMPAIGN_API_BASE}/pages/${subPageId}`, {
-      method: 'DELETE'
-    }, { successMessage: "Sub-page deleted" }).catch(() => {
+    if (!confirm("Are you sure you want to delete this sub-page?")) return;
+    mutateStructure(
+      `${CAMPAIGN_API_BASE}/pages/${subPageId}`,
+      {
+        method: "DELETE",
+      },
+      { successMessage: "Sub-page deleted" }
+    ).catch(() => {
       /* handled upstream */
     });
   };
 
-  const handleDeleteKeyword = (_context: { type: 'pillar' | 'subpage'; topicId: number; pageId: number }, keywordId: number) => {
-    if (!confirm('Are you sure you want to delete this keyword?')) return;
-    mutateStructure(`${CAMPAIGN_API_BASE}/keywords/${keywordId}`, {
-      method: 'DELETE'
-    }, { successMessage: "Keyword deleted" }).catch(() => {
+  const handleDeleteKeyword = (
+    _context: { type: "pillar" | "subpage"; topicId: number; pageId: number },
+    keywordId: number
+  ) => {
+    if (!confirm("Are you sure you want to delete this keyword?")) return;
+    mutateStructure(
+      `${CAMPAIGN_API_BASE}/keywords/${keywordId}`,
+      {
+        method: "DELETE",
+      },
+      { successMessage: "Keyword deleted" }
+    ).catch(() => {
       /* handled upstream */
     });
   };
@@ -3365,7 +4659,9 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
       <div className="w-full flex items-center justify-center py-32">
         <div className="flex flex-col items-center text-center">
           <div className="h-10 w-10 border-2 border-gray-300 border-t-black rounded-full animate-spin mb-4"></div>
-          <p className="text-sm font-light text-gray-500">Loading campaign structure...</p>
+          <p className="text-sm font-light text-gray-500">
+            Loading campaign structure...
+          </p>
         </div>
       </div>
     );
@@ -3374,7 +4670,9 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
   if (structureError) {
     return (
       <div className="w-full max-w-xl mx-auto text-center py-24">
-        <p className="text-base font-light text-gray-600 mb-4">{structureError}</p>
+        <p className="text-base font-light text-gray-600 mb-4">
+          {structureError}
+        </p>
         <button
           onClick={() => fetchStructure(campaign.id)}
           className="px-6 py-3 bg-black text-white rounded-full hover:bg-black/90 transition-all text-sm font-medium"
@@ -3418,8 +4716,8 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
 
       {/* Graph Overview */}
       <div className="w-full h-[700px] mb-10">
-        <CampaignGraph 
-          campaignStructure={campaignStructure} 
+        <CampaignGraph
+          campaignStructure={campaignStructure}
           selectedTopics={selectedTopics}
         />
       </div>
@@ -3444,11 +4742,15 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
           </button>
           <button
             onClick={() => handleAddTopic(true)}
-            disabled={syncing || aiLoading === 'topic'}
+            disabled={syncing || aiLoading === "topic"}
             className="px-4 py-2 bg-black text-white rounded-full hover:bg-black/90 transition-all text-sm font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {aiLoading === 'topic' ? <ButtonSpinner /> : <Sparkles className="h-4 w-4" />}
-            {aiLoading === 'topic' ? 'Generating...' : 'AI Generate'}
+            {aiLoading === "topic" ? (
+              <ButtonSpinner />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
+            {aiLoading === "topic" ? "Generating..." : "AI Generate"}
           </button>
         </div>
       </div>
@@ -3456,7 +4758,10 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
       {/* Topics List */}
       <div className="space-y-4">
         {campaignStructure.topics.map((topic) => (
-          <div key={topic.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div
+            key={topic.id}
+            className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
+          >
             {/* Topic Header */}
             <div className="flex items-center justify-between p-6 hover:bg-gray-50 transition-colors">
               <div className="flex items-center gap-3 flex-1">
@@ -3468,8 +4773,12 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
                   }}
                   className="flex-shrink-0 w-5 h-5 rounded border-2 border-gray-300 flex items-center justify-center transition-all duration-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black/10"
                   style={{
-                    backgroundColor: selectedTopics.has(topic.id) ? '#000' : 'transparent',
-                    borderColor: selectedTopics.has(topic.id) ? '#000' : '#d1d5db'
+                    backgroundColor: selectedTopics.has(topic.id)
+                      ? "#000"
+                      : "transparent",
+                    borderColor: selectedTopics.has(topic.id)
+                      ? "#000"
+                      : "#d1d5db",
                   }}
                 >
                   {selectedTopics.has(topic.id) && (
@@ -3492,7 +4801,7 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
                 >
                   <ChevronRight
                     className={`h-5 w-5 text-gray-400 transition-transform duration-200 ${
-                      expandedTopics.has(topic.id) ? 'rotate-90' : ''
+                      expandedTopics.has(topic.id) ? "rotate-90" : ""
                     }`}
                   />
                 </button>
@@ -3504,7 +4813,9 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
                     {topic.title}
                   </h3>
                   <p className="text-xs font-light text-gray-500 mt-0.5">
-                    {topic.pillarPage ? '1 pillar page' : 'No pillar page'} • {topic.subPages.length} sub-page{topic.subPages.length !== 1 ? 's' : ''}
+                    {topic.pillarPage ? "1 pillar page" : "No pillar page"} •{" "}
+                    {topic.subPages.length} sub-page
+                    {topic.subPages.length !== 1 ? "s" : ""}
                   </p>
                 </div>
               </div>
@@ -3525,24 +4836,34 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
                   {/* Pillar Page Section */}
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-sm font-medium text-gray-900">Pillar Page</h4>
+                      <h4 className="text-sm font-medium text-gray-900">
+                        Pillar Page
+                      </h4>
                       {!topic.pillarPage && (
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleAddPillarPage(topic.id, false)}
-                                disabled={syncing}
-                                className="px-3 py-1.5 text-xs font-light text-gray-600 hover:text-black hover:bg-gray-100 rounded-full transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={syncing}
+                            className="px-3 py-1.5 text-xs font-light text-gray-600 hover:text-black hover:bg-gray-100 rounded-full transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <Plus className="h-3.5 w-3.5" />
                             Manual
                           </button>
                           <button
                             onClick={() => handleAddPillarPage(topic.id, true)}
-                                disabled={syncing || aiLoading === `pillar-${topic.id}`}
-                                className="px-3 py-1.5 text-xs font-light text-white bg-black hover:bg-black/90 rounded-full transition-all flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
+                            disabled={
+                              syncing || aiLoading === `pillar-${topic.id}`
+                            }
+                            className="px-3 py-1.5 text-xs font-light text-white bg-black hover:bg-black/90 rounded-full transition-all flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
                           >
-                                {aiLoading === `pillar-${topic.id}` ? <ButtonSpinner /> : <Sparkles className="h-3.5 w-3.5" />}
-                                {aiLoading === `pillar-${topic.id}` ? 'Generating' : 'AI'}
+                            {aiLoading === `pillar-${topic.id}` ? (
+                              <ButtonSpinner />
+                            ) : (
+                              <Sparkles className="h-3.5 w-3.5" />
+                            )}
+                            {aiLoading === `pillar-${topic.id}`
+                              ? "Generating"
+                              : "AI"}
                           </button>
                         </div>
                       )}
@@ -3553,12 +4874,16 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-3 flex-1">
                             <button
-                              onClick={() => togglePillarPage(topic.pillarPage!.id)}
+                              onClick={() =>
+                                togglePillarPage(topic.pillarPage!.id)
+                              }
                               className="p-1 hover:bg-gray-200 rounded transition-colors"
                             >
                               <ChevronRight
                                 className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${
-                                  expandedPillarPages.has(topic.pillarPage!.id) ? 'rotate-90' : ''
+                                  expandedPillarPages.has(topic.pillarPage!.id)
+                                    ? "rotate-90"
+                                    : ""
                                 }`}
                               />
                             </button>
@@ -3566,29 +4891,57 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
                               <FileText className="h-4 w-4 text-green-600" />
                             </div>
                             <div className="flex-1">
-                              <h5 className="text-sm font-light text-black">{topic.pillarPage.title}</h5>
+                              <h5 className="text-sm font-light text-black">
+                                {topic.pillarPage.title}
+                              </h5>
                               <p className="text-xs font-light text-gray-500 mt-0.5">
-                                {topic.pillarPage.keywords.length} keyword{topic.pillarPage.keywords.length !== 1 ? 's' : ''}
+                                {topic.pillarPage.keywords.length} keyword
+                                {topic.pillarPage.keywords.length !== 1
+                                  ? "s"
+                                  : ""}
                               </p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
                             <div className="flex items-center gap-1">
                               <button
-                                onClick={() => handleAddKeyword('pillar', topic.id, topic.pillarPage!.id, false)}
-                                  disabled={syncing}
-                                  className="px-2 py-1 text-xs font-light text-gray-600 hover:text-black hover:bg-gray-100 rounded-full transition-all flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                                onClick={() =>
+                                  handleAddKeyword(
+                                    "pillar",
+                                    topic.id,
+                                    topic.pillarPage!.id,
+                                    false
+                                  )
+                                }
+                                disabled={syncing}
+                                className="px-2 py-1 text-xs font-light text-gray-600 hover:text-black hover:bg-gray-100 rounded-full transition-all flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Add keyword manually"
                               >
                                 <Plus className="h-3 w-3" />
                               </button>
                               <button
-                                onClick={() => handleAddKeyword('pillar', topic.id, topic.pillarPage!.id, true)}
-                                  disabled={syncing || aiLoading === `keyword-${topic.pillarPage!.id}`}
-                                  className="px-2 py-1 text-xs font-light text-white bg-black hover:bg-black/90 rounded-full transition-all flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
+                                onClick={() =>
+                                  handleAddKeyword(
+                                    "pillar",
+                                    topic.id,
+                                    topic.pillarPage!.id,
+                                    true
+                                  )
+                                }
+                                disabled={
+                                  syncing ||
+                                  aiLoading ===
+                                    `keyword-${topic.pillarPage!.id}`
+                                }
+                                className="px-2 py-1 text-xs font-light text-white bg-black hover:bg-black/90 rounded-full transition-all flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
                                 title="AI generate keywords"
                               >
-                                  {aiLoading === `keyword-${topic.pillarPage!.id}` ? <ButtonSpinner /> : <Sparkles className="h-3 w-3" />}
+                                {aiLoading ===
+                                `keyword-${topic.pillarPage!.id}` ? (
+                                  <ButtonSpinner />
+                                ) : (
+                                  <Sparkles className="h-3 w-3" />
+                                )}
                               </button>
                             </div>
                             <button
@@ -3613,19 +4966,33 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
                                 >
                                   <div className="flex items-center gap-3">
                                     <div className="w-6 h-6 rounded bg-blue-50 flex items-center justify-center">
-                                      <span className="text-[10px] font-medium text-blue-600">K</span>
+                                      <span className="text-[10px] font-medium text-blue-600">
+                                        K
+                                      </span>
                                     </div>
                                     <div>
-                                      <p className="text-sm font-light text-black">{keyword.term}</p>
+                                      <p className="text-sm font-light text-black">
+                                        {keyword.term}
+                                      </p>
                                       <p className="text-xs font-light text-gray-500">
-                                        Vol: {keyword.volume.toLocaleString()} • KD: {keyword.difficulty}
+                                        Vol: {keyword.volume.toLocaleString()} •
+                                        KD: {keyword.difficulty}
                                       </p>
                                     </div>
                                   </div>
                                   <button
-                                    onClick={() => handleDeleteKeyword({ type: 'pillar', topicId: topic.id, pageId: topic.pillarPage!.id }, keyword.id)}
-                                      disabled={syncing}
-                                      className="p-1 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    onClick={() =>
+                                      handleDeleteKeyword(
+                                        {
+                                          type: "pillar",
+                                          topicId: topic.id,
+                                          pageId: topic.pillarPage!.id,
+                                        },
+                                        keyword.id
+                                      )
+                                    }
+                                    disabled={syncing}
+                                    className="p-1 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                     title="Delete keyword"
                                   >
                                     <X className="h-3.5 w-3.5" />
@@ -3633,20 +5000,26 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
                                 </div>
                               ))
                             ) : (
-                              <p className="text-xs font-light text-gray-500 italic">No keywords yet</p>
+                              <p className="text-xs font-light text-gray-500 italic">
+                                No keywords yet
+                              </p>
                             )}
                           </div>
                         )}
                       </div>
                     ) : (
-                      <p className="text-xs font-light text-gray-500 italic py-2">No pillar page created yet</p>
+                      <p className="text-xs font-light text-gray-500 italic py-2">
+                        No pillar page created yet
+                      </p>
                     )}
                   </div>
 
                   {/* Sub Pages Section */}
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-sm font-medium text-gray-900">Sub Pages</h4>
+                      <h4 className="text-sm font-medium text-gray-900">
+                        Sub Pages
+                      </h4>
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleAddSubPage(topic.id, false)}
@@ -3658,11 +5031,19 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
                         </button>
                         <button
                           onClick={() => handleAddSubPage(topic.id, true)}
-                          disabled={syncing || aiLoading === `subpage-${topic.id}`}
+                          disabled={
+                            syncing || aiLoading === `subpage-${topic.id}`
+                          }
                           className="px-3 py-1.5 text-xs font-light text-white bg-black hover:bg-black/90 rounded-full transition-all flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
                         >
-                          {aiLoading === `subpage-${topic.id}` ? <ButtonSpinner /> : <Sparkles className="h-3.5 w-3.5" />}
-                          {aiLoading === `subpage-${topic.id}` ? 'Generating' : 'AI'}
+                          {aiLoading === `subpage-${topic.id}` ? (
+                            <ButtonSpinner />
+                          ) : (
+                            <Sparkles className="h-3.5 w-3.5" />
+                          )}
+                          {aiLoading === `subpage-${topic.id}`
+                            ? "Generating"
+                            : "AI"}
                         </button>
                       </div>
                     </div>
@@ -3670,7 +5051,10 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
                     <div className="space-y-3">
                       {topic.subPages.length > 0 ? (
                         topic.subPages.map((subPage) => (
-                          <div key={subPage.id} className="bg-gray-50 rounded-xl border border-gray-200 p-4">
+                          <div
+                            key={subPage.id}
+                            className="bg-gray-50 rounded-xl border border-gray-200 p-4"
+                          >
                             <div className="flex items-center justify-between mb-3">
                               <div className="flex items-center gap-3 flex-1">
                                 <button
@@ -3679,7 +5063,9 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
                                 >
                                   <ChevronRight
                                     className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${
-                                      expandedSubPages.has(subPage.id) ? 'rotate-90' : ''
+                                      expandedSubPages.has(subPage.id)
+                                        ? "rotate-90"
+                                        : ""
                                     }`}
                                   />
                                 </button>
@@ -3687,16 +5073,26 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
                                   <FileText className="h-4 w-4 text-orange-600" />
                                 </div>
                                 <div className="flex-1">
-                                  <h5 className="text-sm font-light text-black">{subPage.title}</h5>
+                                  <h5 className="text-sm font-light text-black">
+                                    {subPage.title}
+                                  </h5>
                                   <p className="text-xs font-light text-gray-500 mt-0.5">
-                                    {subPage.keywords.length} keyword{subPage.keywords.length !== 1 ? 's' : ''}
+                                    {subPage.keywords.length} keyword
+                                    {subPage.keywords.length !== 1 ? "s" : ""}
                                   </p>
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
                                 <div className="flex items-center gap-1">
                                   <button
-                                    onClick={() => handleAddKeyword('subpage', topic.id, subPage.id, false)}
+                                    onClick={() =>
+                                      handleAddKeyword(
+                                        "subpage",
+                                        topic.id,
+                                        subPage.id,
+                                        false
+                                      )
+                                    }
                                     disabled={syncing}
                                     className="px-2 py-1 text-xs font-light text-gray-600 hover:text-black hover:bg-gray-100 rounded-full transition-all flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                                     title="Add keyword manually"
@@ -3704,16 +5100,32 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
                                     <Plus className="h-3 w-3" />
                                   </button>
                                   <button
-                                    onClick={() => handleAddKeyword('subpage', topic.id, subPage.id, true)}
-                                    disabled={syncing || aiLoading === `keyword-${subPage.id}`}
+                                    onClick={() =>
+                                      handleAddKeyword(
+                                        "subpage",
+                                        topic.id,
+                                        subPage.id,
+                                        true
+                                      )
+                                    }
+                                    disabled={
+                                      syncing ||
+                                      aiLoading === `keyword-${subPage.id}`
+                                    }
                                     className="px-2 py-1 text-xs font-light text-white bg-black hover:bg-black/90 rounded-full transition-all flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
                                     title="AI generate keywords"
                                   >
-                                    {aiLoading === `keyword-${subPage.id}` ? <ButtonSpinner /> : <Sparkles className="h-3 w-3" />}
+                                    {aiLoading === `keyword-${subPage.id}` ? (
+                                      <ButtonSpinner />
+                                    ) : (
+                                      <Sparkles className="h-3 w-3" />
+                                    )}
                                   </button>
                                 </div>
                                 <button
-                                  onClick={() => handleDeleteSubPage(topic.id, subPage.id)}
+                                  onClick={() =>
+                                    handleDeleteSubPage(topic.id, subPage.id)
+                                  }
                                   disabled={syncing}
                                   className="p-1.5 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                   title="Delete sub-page"
@@ -3734,17 +5146,32 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
                                     >
                                       <div className="flex items-center gap-3">
                                         <div className="w-6 h-6 rounded bg-blue-50 flex items-center justify-center">
-                                          <span className="text-[10px] font-medium text-blue-600">K</span>
+                                          <span className="text-[10px] font-medium text-blue-600">
+                                            K
+                                          </span>
                                         </div>
                                         <div>
-                                          <p className="text-sm font-light text-black">{keyword.term}</p>
+                                          <p className="text-sm font-light text-black">
+                                            {keyword.term}
+                                          </p>
                                           <p className="text-xs font-light text-gray-500">
-                                            Vol: {keyword.volume.toLocaleString()} • KD: {keyword.difficulty}
+                                            Vol:{" "}
+                                            {keyword.volume.toLocaleString()} •
+                                            KD: {keyword.difficulty}
                                           </p>
                                         </div>
                                       </div>
                                       <button
-                                        onClick={() => handleDeleteKeyword({ type: 'subpage', topicId: topic.id, pageId: subPage.id }, keyword.id)}
+                                        onClick={() =>
+                                          handleDeleteKeyword(
+                                            {
+                                              type: "subpage",
+                                              topicId: topic.id,
+                                              pageId: subPage.id,
+                                            },
+                                            keyword.id
+                                          )
+                                        }
                                         disabled={syncing}
                                         className="p-1 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                         title="Delete keyword"
@@ -3754,14 +5181,18 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
                                     </div>
                                   ))
                                 ) : (
-                                  <p className="text-xs font-light text-gray-500 italic">No keywords yet</p>
+                                  <p className="text-xs font-light text-gray-500 italic">
+                                    No keywords yet
+                                  </p>
                                 )}
                               </div>
                             )}
                           </div>
                         ))
                       ) : (
-                        <p className="text-xs font-light text-gray-500 italic py-2">No sub-pages created yet</p>
+                        <p className="text-xs font-light text-gray-500 italic py-2">
+                          No sub-pages created yet
+                        </p>
                       )}
                     </div>
                   </div>
@@ -3776,8 +5207,12 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
             <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
               <Sparkles className="h-8 w-8 text-gray-400" />
             </div>
-            <h3 className="text-lg font-light text-black mb-2">No Topics Yet</h3>
-            <p className="text-sm font-light text-gray-600 mb-4">Add your first topic to get started</p>
+            <h3 className="text-lg font-light text-black mb-2">
+              No Topics Yet
+            </h3>
+            <p className="text-sm font-light text-gray-600 mb-4">
+              Add your first topic to get started
+            </p>
             <div className="flex items-center justify-center gap-2">
               <button
                 onClick={() => handleAddTopic(false)}
@@ -3802,10 +5237,14 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
       {showAddTopicModal && (
         <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl border border-gray-200 shadow-xl p-8 max-w-md w-full">
-            <h3 className="text-xl font-light text-black tracking-tight mb-6">Add New Topic</h3>
+            <h3 className="text-xl font-light text-black tracking-tight mb-6">
+              Add New Topic
+            </h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-light text-gray-900 mb-2">Topic Title</label>
+                <label className="block text-sm font-light text-gray-900 mb-2">
+                  Topic Title
+                </label>
                 <input
                   type="text"
                   value={newTopicTitle}
@@ -3820,7 +5259,7 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
               <button
                 onClick={() => {
                   setShowAddTopicModal(false);
-                  setNewTopicTitle('');
+                  setNewTopicTitle("");
                 }}
                 className="px-6 py-3 bg-gray-100 text-gray-900 rounded-full hover:bg-gray-200 transition-all text-base font-light"
               >
@@ -3842,13 +5281,17 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
         <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl border border-gray-200 shadow-xl p-8 max-w-md w-full">
             <h3 className="text-xl font-light text-black tracking-tight mb-6">
-              {targetTopicId && campaignStructure.topics.find(t => t.id === targetTopicId)?.pillarPage
-                ? 'Edit Pillar Page'
-                : 'Add Pillar Page'}
+              {targetTopicId &&
+              campaignStructure.topics.find((t) => t.id === targetTopicId)
+                ?.pillarPage
+                ? "Edit Pillar Page"
+                : "Add Pillar Page"}
             </h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-light text-gray-900 mb-2">Pillar Page Title</label>
+                <label className="block text-sm font-light text-gray-900 mb-2">
+                  Pillar Page Title
+                </label>
                 <input
                   type="text"
                   value={newPillarTitle}
@@ -3863,7 +5306,7 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
               <button
                 onClick={() => {
                   setShowAddPillarModal(false);
-                  setNewPillarTitle('');
+                  setNewPillarTitle("");
                   setTargetTopicId(null);
                 }}
                 className="px-6 py-3 bg-gray-100 text-gray-900 rounded-full hover:bg-gray-200 transition-all text-base font-light"
@@ -3874,9 +5317,11 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
                 onClick={handleSubmitPillarPage}
                 className="px-6 py-3 bg-black text-white rounded-full hover:bg-black/90 transition-all text-base font-medium"
               >
-                {targetTopicId && campaignStructure.topics.find(t => t.id === targetTopicId)?.pillarPage
-                  ? 'Update Pillar Page'
-                  : 'Add Pillar Page'}
+                {targetTopicId &&
+                campaignStructure.topics.find((t) => t.id === targetTopicId)
+                  ?.pillarPage
+                  ? "Update Pillar Page"
+                  : "Add Pillar Page"}
               </button>
             </div>
           </div>
@@ -3887,10 +5332,14 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
       {showAddSubPageModal && (
         <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl border border-gray-200 shadow-xl p-8 max-w-md w-full">
-            <h3 className="text-xl font-light text-black tracking-tight mb-6">Add New Sub-Page</h3>
+            <h3 className="text-xl font-light text-black tracking-tight mb-6">
+              Add New Sub-Page
+            </h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-light text-gray-900 mb-2">Sub-Page Title</label>
+                <label className="block text-sm font-light text-gray-900 mb-2">
+                  Sub-Page Title
+                </label>
                 <input
                   type="text"
                   value={newSubPageTitle}
@@ -3905,7 +5354,7 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
               <button
                 onClick={() => {
                   setShowAddSubPageModal(false);
-                  setNewSubPageTitle('');
+                  setNewSubPageTitle("");
                   setTargetTopicId(null);
                 }}
                 className="px-6 py-3 bg-gray-100 text-gray-900 rounded-full hover:bg-gray-200 transition-all text-base font-light"
@@ -3927,10 +5376,14 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
       {showAddKeywordModal && (
         <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl border border-gray-200 shadow-xl p-8 max-w-md w-full">
-            <h3 className="text-xl font-light text-black tracking-tight mb-6">Add New Keyword</h3>
+            <h3 className="text-xl font-light text-black tracking-tight mb-6">
+              Add New Keyword
+            </h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-light text-gray-900 mb-2">Keyword Term</label>
+                <label className="block text-sm font-light text-gray-900 mb-2">
+                  Keyword Term
+                </label>
                 <input
                   type="text"
                   value={newKeywordTerm}
@@ -3942,7 +5395,9 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-light text-gray-900 mb-2">Volume</label>
+                  <label className="block text-sm font-light text-gray-900 mb-2">
+                    Volume
+                  </label>
                   <input
                     type="number"
                     value={newKeywordVolume}
@@ -3952,7 +5407,9 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-light text-gray-900 mb-2">Difficulty</label>
+                  <label className="block text-sm font-light text-gray-900 mb-2">
+                    Difficulty
+                  </label>
                   <select
                     value={newKeywordDifficulty}
                     onChange={(e) => setNewKeywordDifficulty(e.target.value)}
@@ -3969,9 +5426,9 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
               <button
                 onClick={() => {
                   setShowAddKeywordModal(false);
-                  setNewKeywordTerm('');
-                  setNewKeywordVolume('');
-                  setNewKeywordDifficulty('Medium');
+                  setNewKeywordTerm("");
+                  setNewKeywordVolume("");
+                  setNewKeywordDifficulty("Medium");
                   setAddKeywordContext(null);
                 }}
                 className="px-6 py-3 bg-gray-100 text-gray-900 rounded-full hover:bg-gray-200 transition-all text-base font-light"
@@ -3993,4 +5450,3 @@ const CampaignStructureView: React.FC<CampaignStructureViewProps> = ({ campaign,
 };
 
 export default SidebarDashboard;
-
